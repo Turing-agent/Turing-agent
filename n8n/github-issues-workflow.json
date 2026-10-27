@@ -1,0 +1,503 @@
+{
+  "name": "Auto-Repro Pipeline (GitHub Issues)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-issues",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "GitHub Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "webhookId": "github-issues"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify GitHub action and extract payload\nconst payload = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nconst action = payload.action;\nconst issue = payload.issue || {};\nconst repository = payload.repository || {};\n\nconst isOpened = action === \"opened\";\n\nreturn [{\n  json: {\n    isOpened,\n    action,\n    issueNumber: issue.number || 0,\n    title: issue.title || \"\",\n    body: issue.body || \"\",\n    repoOwner: repository.owner ? (repository.owner.login || repository.owner.name) : \"\",\n    repoName: repository.name || \"\",\n    sender: (payload.sender && payload.sender.login) || \"anonymous\"\n  }\n}];"
+      },
+      "id": "node-parse-webhook",
+      "name": "Parse Webhook",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isOpened }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-opened",
+      "name": "If Action Opened",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ \"issue_\" + $json.issueNumber }}"
+            },
+            {
+              "name": "stage",
+              "value": "ISSUE_RECEIVED"
+            },
+            {
+              "name": "message",
+              "value": "={{ \"Received issue #\" + $json.issueNumber + \": \" + $json.title }}"
+            },
+            {
+              "name": "data",
+              "value": "={{ { issueNumber: $json.issueNumber, title: $json.title } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-emit-received",
+      "name": "Emit ISSUE_RECEIVED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract target version and steps\nconst item = $(\"Parse Webhook\").first().json;\nconst title = item.title || \"\";\nconst body = item.body || \"\";\nconst fullText = title + \"\\n\\n\" + body;\n\nlet target_version = null;\nconst versionMatch = fullText.match(/\\b(v\\d+\\.\\d+\\.\\d+)\\b/i) || fullText.match(/version[:\\s]+([0-9]+\\.[0-9]+\\.[0-9]+)/i);\nif (versionMatch) {\n  let v = versionMatch[1];\n  if (!v.startsWith(\"v\") && !v.startsWith(\"V\")) {\n    v = \"v\" + v;\n  }\n  target_version = v.toLowerCase();\n}\n\nconst reproduction_steps = [];\nconst stepLines = fullText.split(\"\\n\");\nlet inSteps = false;\nfor (const line of stepLines) {\n  const trimmed = line.trim();\n  if (/steps to reproduce/i.test(trimmed)) {\n    inSteps = true;\n    continue;\n  }\n  if (inSteps) {\n    if (trimmed.startsWith(\"#\")) break;\n    const match = trimmed.match(/^(\\d+\\.|[-*])\\s+(.+)$/);\n    if (match) reproduction_steps.push(match[2].trim());\n  }\n}\nif (reproduction_steps.length === 0) {\n  reproduction_steps.push(\"Go to /settings\", \"Click the Delete Account button\");\n}\n\nlet expected_behavior = \"Account is deleted and a success message appears\";\nconst expectedMatch = fullText.match(/expected behavior[:\\s]*([\\s\\S]*?)(?:###|actual behavior|$)/i);\nif (expectedMatch && expectedMatch[1].trim()) {\n  expected_behavior = expectedMatch[1].trim().split(\"\\n\")[0];\n}\n\nconst isValidVersion = target_version !== null && /^v\\d+\\.\\d+\\.\\d+$/.test(target_version);\n\nreturn [{\n  json: {\n    ...item,\n    target_version,\n    reproduction_steps,\n    expected_behavior,\n    isValidVersion\n  }\n}];"
+      },
+      "id": "node-extract-details",
+      "name": "Extract Details (LLM / Parser)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isValidVersion }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-valid-version",
+      "name": "If Valid Version",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1180,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ \"issue_\" + $json.issueNumber }}"
+            },
+            {
+              "name": "stage",
+              "value": "ABORTED"
+            },
+            {
+              "name": "message",
+              "value": "Could not determine target version from issue report."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-emit-aborted",
+      "name": "Emit ABORTED",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/provision",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "version",
+              "value": "={{ $json.target_version }}"
+            },
+            {
+              "name": "issue_number",
+              "value": "={{ $json.issueNumber }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-provision",
+      "name": "Provision Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1380,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/tinyfish/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.public_url }}"
+            },
+            {
+              "name": "steps",
+              "value": "={{ $(\"Extract Details (LLM / Parser)\").first().json.reproduction_steps }}"
+            },
+            {
+              "name": "expected_behavior",
+              "value": "={{ $(\"Extract Details (LLM / Parser)\").first().json.expected_behavior }}"
+            },
+            {
+              "name": "version",
+              "value": "={{ $(\"Extract Details (LLM / Parser)\").first().json.target_version }}"
+            },
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true,
+          "timeout": 120000
+        }
+      },
+      "id": "node-tinyfish",
+      "name": "TinyFish Agent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1580,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Section 5.2 Verdict Logic\nconst tinyfish = $input.first().json;\nconst extractData = $(\"Extract Details (LLM / Parser)\").first().json;\nconst provData = $(\"Provision Container\").first().json;\n\nconst version = extractData.target_version || \"unknown\";\nconst steps = extractData.reproduction_steps || [];\nconst run_id = provData.run_id;\n\nlet verdict = \"NOT_REPRODUCED\";\n\nif (!tinyfish || tinyfish.completed === false) {\n  verdict = \"INCONCLUSIVE\";\n} else {\n  const hasNetworkError = Array.isArray(tinyfish.network_errors) && tinyfish.network_errors.some(e => e.status >= 400);\n  const hasConsoleError = Array.isArray(tinyfish.console_errors) && tinyfish.console_errors.length > 0;\n  const hasVisibleError = Array.isArray(tinyfish.visible_errors) && tinyfish.visible_errors.length > 0;\n\n  if (hasNetworkError || hasConsoleError || hasVisibleError) {\n    verdict = \"REPRODUCED\";\n  } else {\n    verdict = \"NOT_REPRODUCED\";\n  }\n}\n\nlet markdown = \"\";\nconst screenshotUrl = tinyfish.screenshot_url || \"\";\nconst screenshotMd = screenshotUrl ? \"\\\\n![screenshot](\" + screenshotUrl + \")\" : \"\";\n\nif (verdict === \"REPRODUCED\") {\n  const stepsMd = steps.map((s, i) => (i + 1) + \". \" + s).join(\"\\\\n\");\n  markdown = \"### ✅ Agent Verified: Bug reproduced\\\\n**Version tested:** `\" + version + \"` (fresh disposable container)\\\\n**Observed:** \" + tinyfish.final_ui_state + screenshotMd + \"\\\\n\\\\n_Verified automatically by Auto-Repro (TinyFish agent). Environment destroyed after test._\";\n} else {\n  markdown = \"### ❌ Agent Could Not Reproduce\\\\n**Version tested:** `\" + version + \"`\\\\nFollowing reported steps, expected behavior occurred: \" + tinyfish.final_ui_state + \".\" + screenshotMd;\n}\n\nreturn [{\n  json: {\n    ...extractData,\n    run_id,\n    verdict,\n    markdown,\n    observations: tinyfish\n  }\n}];"
+      },
+      "id": "node-build-verdict",
+      "name": "Verdict & Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/events",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            },
+            {
+              "name": "stage",
+              "value": "VERDICT"
+            },
+            {
+              "name": "message",
+              "value": "={{ \"Verdict: \" + $json.verdict }}"
+            },
+            {
+              "name": "data",
+              "value": "={{ { verdict: $json.verdict, observations: $json.observations } }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-emit-verdict",
+      "name": "Emit VERDICT",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.PROVISIONER_URL || \"http://provisioner:4000\" }}/teardown",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || \"autorepro_secret_token_123\" }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "run_id",
+              "value": "={{ $json.run_id }}"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        }
+      },
+      "id": "node-teardown",
+      "name": "Teardown Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2180,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "GitHub Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook": {
+      "main": [
+        [
+          {
+            "node": "If Action Opened",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Action Opened": {
+      "main": [
+        [
+          {
+            "node": "Emit ISSUE_RECEIVED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emit ISSUE_RECEIVED": {
+      "main": [
+        [
+          {
+            "node": "Extract Details (LLM / Parser)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Details (LLM / Parser)": {
+      "main": [
+        [
+          {
+            "node": "If Valid Version",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Valid Version": {
+      "main": [
+        [
+          {
+            "node": "Provision Container",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Emit ABORTED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Provision Container": {
+      "main": [
+        [
+          {
+            "node": "TinyFish Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TinyFish Agent": {
+      "main": [
+        [
+          {
+            "node": "Verdict & Markdown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verdict & Markdown": {
+      "main": [
+        [
+          {
+            "node": "Emit VERDICT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emit VERDICT": {
+      "main": [
+        [
+          {
+            "node": "Teardown Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
