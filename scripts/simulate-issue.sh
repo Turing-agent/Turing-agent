@@ -61,14 +61,21 @@ if curl -s --connect-timeout 1 "${N8N_URL%/webhook/*}/healthz" >/dev/null 2>&1 |
 fi
 
 if [ "$N8N_RUNNING" = true ]; then
-  echo "==> Delivering to live n8n webhook: $N8N_URL"
+  echo "==> Testing live n8n webhook: $N8N_URL"
   RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "$N8N_URL" \
     -H "Content-Type: application/json" \
     -H "X-Hub-Signature-256: $SIG" \
     -H "X-GitHub-Event: issues" \
     -d "$PAYLOAD")
-  echo "$RESP"
-  echo "==> Webhook delivered to n8n! Check dashboard and n8n execution."
+  HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS" | cut -d':' -f2)
+
+  if [ "$HTTP_STATUS" = "200" ] || [ "$HTTP_STATUS" = "202" ]; then
+    echo "==> Webhook accepted by n8n (HTTP $HTTP_STATUS)!"
+  else
+    echo "==> n8n webhook returned HTTP $HTTP_STATUS (Workflow may not be activated yet in n8n UI)."
+    echo "==> Falling back to automated pipeline runner against Provisioner ($PROVISIONER_URL)..."
+    node "${ROOT_DIR}/scripts/runner.js" "$ISSUE_FILE"
+  fi
 else
   echo "==> Note: n8n is not listening on localhost:5678."
   echo "==> Executing automated pipeline runner against Provisioner ($PROVISIONER_URL)..."
