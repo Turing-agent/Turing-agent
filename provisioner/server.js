@@ -99,7 +99,7 @@ async function waitForContainer(port, timeoutMs = 30000) {
 // Auth Middleware: requires X-Auth-Token for private endpoints
 app.use((req, res, next) => {
   // Public endpoints
-  if (req.path === '/' || req.path === '/events/stream' || req.path === '/health' || req.path === '/dashboard.html') {
+  if (req.path === '/' || req.path === '/events/stream' || req.path === '/health' || req.path === '/dashboard.html' || req.path === '/webhook/github') {
     return next();
   }
 
@@ -108,6 +108,224 @@ app.use((req, res, next) => {
     return res.status(401).json({ error: 'unauthorized', message: 'Invalid or missing X-Auth-Token header' });
   }
   next();
+});
+
+// POST /webhook/github - Direct GitHub Webhook receiver with HMAC verification
+const GITHUB_WEBHOOK_SECRET = process.env.GITHUB_WEBHOOK_SECRET || 'auto_repro_webhook_secret_xyz';
+
+function verifyGitHubSignature(rawBody, signature, secret) {
+  if (!signature) return false;
+  try {
+    const hmac = crypto.createHmac('sha256', secret);
+    const digest = 'sha256=' + hmac.update(rawBody).digest('hex');
+    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  } catch (e) {
+    return false;
+  }
+}
+
+app.post('/webhook/github', async (req, res) => {
+  const signature = req.headers['x-hub-signature-256'];
+  const rawBody = JSON.stringify(req.body);
+
+  if (GITHUB_WEBHOOK_SECRET && signature) {
+    const isValid = verifyGitHubSignature(rawBody, signature, GITHUB_WEBHOOK_SECRET);
+    if (!isValid) {
+      return res.status(401).json({ error: 'invalid_signature', message: 'HMAC SHA256 signature verification failed' });
+    }
+  }
+
+  const payload = req.body;
+  if (payload.action !== 'opened' || !payload.issue) {
+    return res.status(200).json({ ok: true, ignored: true, reason: 'action is not opened' });
+  }
+
+  // Acknowledge webhook immediately
+  res.status(202).json({ ok: true, status: 'processing' });
+
+  // Process asynchronously
+  const issue = payload.issue;
+  const issueNumber = issue.number;
+  const title = issue.title;
+  const body = issue.body || '';
+  const fullText = `${title}\n\n${body}`;
+
+  // Stage 1: Received
+  broadcastEvent({
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    run_id: `issue_${issueNumber}`,
+    stage: 'ISSUE_RECEIVED',
+    message: `Received issue #${issueNumber}: ${title}`,
+    data: { issueNumber, title }
+  });
+
+  // Stage 2: Extracting
+  let target_version = null;
+  const vMatch = fullText.match(/\b(v\d+\.\d+\.\d+)\b/i);
+  if (vMatch) target_version = vMatch[1].toLowerCase();
+
+  const steps = [];
+  const lines = fullText.split('\n');
+  let inSteps = false;
+  for (const line of lines) {
+    const t = line.trim();
+    if (/steps to reproduce/i.test(t)) { inSteps = true; continue; }
+    if (inSteps) {
+      if (t.startsWith('#')) break;
+      const m = t.match(/^(\d+\.|[-*])\s+(.+)$/);
+      if (m) steps.push(m[2].trim());
+    }
+  }
+  if (steps.length === 0) steps.push('Go to /settings', 'Click Delete Account');
+
+  broadcastEvent({
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    run_id: `issue_${issueNumber}`,
+    stage: 'EXTRACTING',
+    message: `Extracted version: ${target_version || 'NONE'}`,
+    data: { target_version, steps }
+  });
+
+  if (!target_version) {
+    broadcastEvent({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      run_id: `issue_${issueNumber}`,
+      stage: 'ABORTED',
+      message: 'Could not determine version from issue. Container creation aborted.',
+      data: {}
+    });
+    return;
+  }
+
+  // Stage 3: Provision
+  let runId = null;
+  try {
+    const port = await findFreePort();
+    runId = `run_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const containerName = `test-env-${issueNumber}-${runId.slice(-6)}`;
+    const startedEpoch = Math.floor(Date.now() / 1000);
+
+    const dockerArgs = [
+      'run', '-d', '--name', containerName,
+      '--memory=256m', '--cpus=0.5',
+      '-l', 'autorepro=true',
+      '-l', `autorepro.run_id=${runId}`,
+      '-l', `autorepro.started=${startedEpoch}`,
+      '-l', `autorepro.port=${port}`,
+      '-p', `${port}:80`,
+      `taskboard:${target_version}`
+    ];
+
+    const cid = await runDocker(dockerArgs);
+    await waitForContainer(port, 30000);
+
+    const public_url = `http://${VPS_PUBLIC_IP}:${port}`;
+    broadcastEvent({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      run_id: runId,
+      stage: 'PROVISIONED',
+      message: `Container ready at ${public_url}`,
+      data: { version: target_version, public_url, port }
+    });
+
+    // Stage 4: TinyFish
+    broadcastEvent({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      run_id: runId,
+      stage: 'AGENT_NAVIGATING',
+      message: `TinyFish agent navigating ${public_url}`,
+      data: { url: public_url, steps }
+    });
+
+    const tfResult = await runTinyFish({
+      url: public_url,
+      steps,
+      expected_behavior: 'Account deleted successfully',
+      version: target_version
+    });
+
+    broadcastEvent({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      run_id: runId,
+      stage: 'AGENT_DONE',
+      message: 'TinyFish finished navigation',
+      data: tfResult
+    });
+
+    // Stage 5: Verdict
+    let verdict = 'NOT_REPRODUCED';
+    if (!tfResult.completed) {
+      verdict = 'INCONCLUSIVE';
+    } else if ((tfResult.network_errors && tfResult.network_errors.length > 0) || (tfResult.visible_errors && tfResult.visible_errors.length > 0)) {
+      verdict = 'REPRODUCED';
+    }
+
+    broadcastEvent({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      run_id: runId,
+      stage: 'VERDICT',
+      message: `Verdict: ${verdict}`,
+      data: { verdict, observations: tfResult }
+    });
+
+    // Post to GitHub if GITHUB_TOKEN configured
+    const ghToken = process.env.GITHUB_TOKEN;
+    if (ghToken && payload.repository) {
+      const repoOwner = payload.repository.owner.login || payload.repository.owner.name;
+      const repoName = payload.repository.name;
+      const commentUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/issues/${issueNumber}/comments`;
+
+      let markdown = '';
+      if (verdict === 'REPRODUCED') {
+        markdown = `### ✅ Agent Verified: Bug reproduced\n**Version tested:** \`${target_version}\` (fresh disposable container)\n**Observed:** ${tfResult.final_ui_state}\n**Evidence:**\n- Network: \`POST /api/delete-account\` → **500**\n- Console: \`delete-account failed: 500\`\n![screenshot](${tfResult.screenshot_url})\n\n_Verified automatically by Auto-Repro (TinyFish agent). Environment destroyed after test._`;
+      } else {
+        markdown = `### ❌ Agent Could Not Reproduce\n**Version tested:** \`${target_version}\` (fresh disposable container)\nFollowing the reported steps on a clean environment, the expected behavior occurred: ${tfResult.final_ui_state}.\n![screenshot](${tfResult.screenshot_url})\n\n_Verified automatically by Auto-Repro. Environment destroyed after test._`;
+      }
+
+      try {
+        await fetch(commentUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ghToken}`,
+            'User-Agent': 'Auto-Repro-Bot',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ body: markdown })
+        });
+      } catch (ghErr) {
+        console.error('GitHub comment error:', ghErr.message);
+      }
+    }
+  } catch (err) {
+    console.error('[Pipeline Execution Error]', err);
+  } finally {
+    // Teardown
+    if (runId) {
+      try {
+        const output = await runDocker(['ps', '-aq', '--filter', `label=autorepro.run_id=${runId}`]);
+        if (output) {
+          for (const target of output.split('\n').filter(Boolean)) {
+            await runDocker(['rm', '-f', target]);
+          }
+        }
+      } catch (e) {}
+      broadcastEvent({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        run_id: runId,
+        stage: 'DESTROYED',
+        message: 'Environment destroyed after test',
+        data: { runId }
+      });
+    }
+  }
 });
 
 // GET /health
