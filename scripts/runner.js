@@ -7,13 +7,33 @@
 
 const fs = require('fs');
 const path = require('path');
+
+// Auto-load .env file if present
+const envPath = path.join(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+  const envLines = fs.readFileSync(envPath, 'utf8').split('\n');
+  for (const line of envLines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eqIdx = trimmed.indexOf('=');
+    if (eqIdx !== -1) {
+      const k = trimmed.substring(0, eqIdx).trim();
+      const v = trimmed.substring(eqIdx + 1).split('#')[0].trim();
+      if (!process.env[k]) process.env[k] = v;
+    }
+  }
+}
+
 const { runTinyFish } = require('../tinyfish/adapter');
 
 const args = process.argv.slice(2);
 const issuePath = args[0] || path.join(__dirname, '../demo/issue-real-bug.md');
 const customIssueNum = args[1] ? parseInt(args[1], 10) : null;
 const repoTarget = args[2] || process.env.GITHUB_REPOSITORY || 'YASHK-arch/AgentX-TinyFish';
-const provUrl = process.env.PROVISIONER_URL || 'http://127.0.0.1:4000';
+let provUrl = process.env.PROVISIONER_URL || 'http://127.0.0.1:4000';
+if (provUrl.includes('provisioner:4000')) {
+  provUrl = 'http://127.0.0.1:4000';
+}
 const token = process.env.PROVISIONER_TOKEN || 'autorepro_secret_token_123';
 const githubToken = process.env.GITHUB_TOKEN || '';
 

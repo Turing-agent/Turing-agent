@@ -48,6 +48,7 @@ services:
       - TINYFISH_API_KEY=${TINYFISH_API_KEY:-}
       - TINYFISH_MOCK=${TINYFISH_MOCK:-true}
       - N8N_BASIC_AUTH_ACTIVE=false
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
