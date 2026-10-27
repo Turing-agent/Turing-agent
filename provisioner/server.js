@@ -6,6 +6,8 @@ const { execFile } = require('child_process');
 const crypto = require('crypto');
 require('dotenv').config();
 
+const { runTinyFish } = require('../tinyfish/adapter');
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 const VPS_PUBLIC_IP = process.env.VPS_PUBLIC_IP || '127.0.0.1';
@@ -319,6 +321,54 @@ app.post('/teardown', async (req, res) => {
   broadcastEvent(destroyEvent);
 
   res.status(200).json({ ok: true, run_id, removed: targets });
+});
+
+// POST /tinyfish/run - Run TinyFish web agent (or mock mode)
+app.post('/tinyfish/run', async (req, res) => {
+  const { url, steps, expected_behavior, capture, version, run_id } = req.body;
+  if (!url) {
+    return res.status(400).json({ error: 'url is required' });
+  }
+
+  try {
+    if (run_id) {
+      broadcastEvent({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        run_id,
+        stage: 'AGENT_NAVIGATING',
+        message: `TinyFish agent navigating ${url}`,
+        data: { url, steps }
+      });
+    }
+
+    const result = await runTinyFish({ url, steps, expected_behavior, capture, version });
+
+    if (run_id) {
+      broadcastEvent({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        run_id,
+        stage: 'AGENT_DONE',
+        message: `TinyFish finished navigation`,
+        data: result
+      });
+    }
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error('[TinyFish Error]', err);
+    res.status(500).json({
+      completed: false,
+      error: err.message,
+      final_ui_state: 'Agent execution failed',
+      visible_errors: [err.message],
+      console_errors: [],
+      network_errors: [],
+      screenshot_url: null,
+      agent_summary: `Execution error: ${err.message}`
+    });
+  }
 });
 
 // TTL Reaper: runs every 30s, cleans containers labeled autorepro=true older than 10 minutes (600s)
