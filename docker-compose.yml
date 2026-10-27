@@ -15,8 +15,10 @@ services:
       - PORT_RANGE_END=8199
       - TINYFISH_API_KEY=${TINYFISH_API_KEY:-}
       - TINYFISH_MOCK=${TINYFISH_MOCK:-true}
+      - UPLOADS_DIR=/app/provisioner/public/uploads
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - uploads_data:/app/provisioner/public/uploads
     networks:
       - autorepro-net
 
@@ -36,6 +38,13 @@ services:
       - PROVISIONER_TOKEN=${PROVISIONER_TOKEN:-autorepro_secret_token_123}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-auto_repro_webhook_secret_xyz}
+      - GITHUB_REPO_OWNER=${GITHUB_REPO_OWNER:-}
+      - GITHUB_REPO_NAME=${GITHUB_REPO_NAME:-taskboard}
+      - JIRA_DOMAIN=${JIRA_DOMAIN:-}
+      - JIRA_EMAIL=${JIRA_EMAIL:-}
+      - JIRA_API_TOKEN=${JIRA_API_TOKEN:-}
+      - JIRA_TRANSITION_SENT_TO_ENG=${JIRA_TRANSITION_SENT_TO_ENG:-21}
+      - JIRA_TRANSITION_CANNOT_REPRODUCE=${JIRA_TRANSITION_CANNOT_REPRODUCE:-31}
       - TINYFISH_API_KEY=${TINYFISH_API_KEY:-}
       - TINYFISH_MOCK=${TINYFISH_MOCK:-true}
       - N8N_BASIC_AUTH_ACTIVE=false
@@ -48,6 +57,7 @@ services:
 
 volumes:
   n8n_data:
+  uploads_data:
 
 networks:
   autorepro-net:

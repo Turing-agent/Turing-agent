@@ -1,52 +1,215 @@
 {
-  "name": "Auto-Repro Pipeline",
+  "name": "Auto-Repro Pipeline (Jira Front Door)",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "POST",
-        "path": "github-issues",
+        "path": "jira-issues",
         "responseMode": "onReceived",
         "responseData": "allEntries",
         "options": {}
       },
-      "id": "node-webhook",
-      "name": "GitHub Webhook",
+      "id": "node-jira-webhook",
+      "name": "Jira Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [180, 300],
-      "webhookId": "github-issues"
+      "position": [
+        140,
+        300
+      ],
+      "webhookId": "jira-issues"
     },
     {
       "parameters": {
-        "jsCode": "// Verify GitHub action and extract payload\nconst payload = $input.first().json.body || $input.first().json;\nconst headers = $input.first().json.headers || {};\n\nconst action = payload.action;\nconst issue = payload.issue || {};\nconst repository = payload.repository || {};\n\n// Basic filter: only proceed if issue is newly opened\nconst isOpened = action === 'opened';\n\nreturn [{\n  json: {\n    isOpened,\n    action,\n    issueNumber: issue.number || 0,\n    title: issue.title || '',\n    body: issue.body || '',\n    repoOwner: repository.owner ? (repository.owner.login || repository.owner.name) : '',\n    repoName: repository.name || '',\n    sender: (payload.sender && payload.sender.login) || 'anonymous',\n    rawPayload: payload\n  }\n}];"
+        "jsCode": "// Parse the Jira webhook payload (issued created / updated).\nconst body = $input.first().json.body || $input.first().json;\nconst issue = body.issue || {};\nconst fields = issue.fields || {};\n\nconst attachments = Array.isArray(fields.attachment) ? fields.attachment : [];\nconst labels = Array.isArray(fields.labels) ? fields.labels : [];\n\nconst desc = fields.description || '';\n// Jira Cloud v3 descriptions are ADF documents; v2 (webhooks) are plain strings.\nlet descriptionText = '';\nif (typeof desc === 'string') {\n  descriptionText = desc;\n} else if (desc && typeof desc === 'object') {\n  const walk = (node, out) => {\n    if (!node) return;\n    if (typeof node === 'string') { out.push(node); return; }\n    if (Array.isArray(node)) { node.forEach(n => walk(n, out)); return; }\n    if (node.text) out.push(node.text);\n    if (node.type === 'hardBreak') out.push('\\n');\n    if (node.content) walk(node.content, out);\n  };\n  const out = [];\n  walk(desc, out);\n  descriptionText = out.join(' ');\n}\n\nreturn [{\n  json: {\n    event: body.webhookEvent || '',\n    issueKey: issue.key || '',\n    issueId: issue.id || '',\n    title: fields.summary || '',\n    description: descriptionText,\n    labels,\n    attachmentCount: attachments.length,\n    attachments: attachments.map(a => ({\n      id: a.id,\n      filename: a.filename || 'attachment',\n      mimeType: a.mimeType || 'application/octet-stream',\n      size: a.size || 0,\n      content: a.content || ''\n    })),\n    hasAttachments: attachments.length > 0,\n    // Attachments in this order: first attachment, then the rest (or a single empty item)\n    firstAttachment: attachments.length > 0\n      ? { id: attachments[0].id, filename: attachments[0].filename, mimeType: attachments[0].mimeType, content: attachments[0].content }\n      : null,\n    restAttachments: attachments.slice(1).map(a => ({\n      id: a.id, filename: a.filename, mimeType: a.mimeType, content: a.content\n    }))\n  }\n}];"
       },
-      "id": "node-parse-webhook",
-      "name": "Parse Webhook",
+      "id": "node-parse-jira",
+      "name": "Parse Jira Issue",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [380, 300]
+      "position": [
+        360,
+        300
+      ]
     },
     {
       "parameters": {
         "conditions": {
           "boolean": [
             {
-              "value1": "={{ $json.isOpened }}",
+              "value1": "={{ $json.hasAttachments }}",
               "value2": true
             }
           ]
         }
       },
-      "id": "node-if-opened",
-      "name": "If Action Opened",
+      "id": "node-if-attachments",
+      "name": "Has Attachments?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [580, 300]
+      "position": [
+        580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Branch: does this Jira issue carry attachments to migrate?\nconst item = $('Parse Jira Issue').first().json;\nreturn [{\n  json: {\n    ...item,\n    hasAttachments: item.attachmentCount > 0\n  }\n}];"
+      },
+      "id": "node-no-attachments",
+      "name": "No Attachments Path",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the Basic Auth header used to download protected Jira attachments.\nconst email = $env.JIRA_EMAIL || '';\nconst token = $env.JIRA_API_TOKEN || '';\nconst basic = Buffer.from(email + ':' + token).toString('base64');\n\n// Attachments to migrate: first one comes from the IF-branch item, the rest from Parse.\nconst parse = $('Parse Jira Issue').first().json;\nconst queue = [];\nif (parse.firstAttachment) queue.push(parse.firstAttachment);\nfor (const a of (parse.restAttachments || [])) queue.push(a);\n\nreturn queue.map(a => ({\n  json: {\n    attachmentId: a.id,\n    filename: a.filename,\n    mimeType: a.mimeType,\n    contentUrl: a.content,\n    authHeader: 'Basic ' + basic\n  }\n}));"
+      },
+      "id": "node-build-jira-auth",
+      "name": "Build Jira Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.contentUrl }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authHeader }}"
+            },
+            {
+              "name": "Accept",
+              "value": "*/*"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "continueOnFail": true
+        }
+      },
+      "id": "node-download-attachment",
+      "name": "Download Jira Attachment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        160
+      ],
+      "notes": "Downloads the protected Jira attachment using Basic Auth (email:api_token)."
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/events",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/upload' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Auth-Token",
+              "value": "={{ $env.PROVISIONER_TOKEN || 'autorepro_secret_token_123' }}"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}",
+              "parameterType": "formBinaryData"
+            }
+          ]
+        }
+      },
+      "id": "node-upload-attachment",
+      "name": "Upload to Provisioner",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        160
+      ],
+      "notes": "Re-hosts the attachment on the provisioner at /uploads/<hash> and returns a public URL."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge the uploaded public URLs back into the issue record.\nconst parse = $('Parse Jira Issue').first().json;\nconst uploaded = $input.all().map(i => i.json);\n\nreturn [{\n  json: {\n    ...parse,\n    uploadedUrls: uploaded.map(u => u.url).filter(Boolean),\n    uploadedFiles: uploaded.map(u => ({ filename: u.originalFilename || '', url: u.url }))\n  }\n}];"
+      },
+      "id": "node-collect-uploads",
+      "name": "Collect Uploaded Media",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert QA Engineer. You receive raw, messy bug reports from users. Your job is to extract the core data and rewrite the report into a pristine Markdown format. You will be provided with the raw text and a list of re-hosted Image URLs. Embed the images seamlessly into the Markdown where relevant. Respond ONLY with valid JSON matching this schema: { \"target_version\": string|null, \"reproduction_steps\": string[], \"expected_behavior\": string|null, \"pristine_markdown\": string }"
+            },
+            {
+              "content": "=Raw report:\\n{{ $('Collect Uploaded Media').first().json.title }}\\n\\n{{ $('Collect Uploaded Media').first().json.description }}\\n\\nRe-hosted media URLs:\\n{{ ($('Collect Uploaded Media').first().json.uploadedUrls || []).join('\\n') }}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "options": {}
+      },
+      "id": "node-llm-gatekeeper",
+      "name": "LLM Gatekeeper",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        1680,
+        180
+      ],
+      "disabled": true,
+      "notes": "Enable and set an OpenAI credential to let the LLM rewrite the report. When disabled, the deterministic fallback below is used."
+    },
+    {
+      "parameters": {
+        "jsCode": "// LLM Gatekeeper (rule-based fallback).\n// The primary path is the 'LLM Gatekeeper' AI node below; this node exists so the\n// pipeline still produces a valid pristine_markdown payload when no LLM credential\n// is configured. It embeds the re-hosted media URLs provided by the upload step.\nconst item = $('Collect Uploaded Media').first().json;\nconst title = item.title || '';\nconst description = item.description || '';\nconst fullText = title + '\\n\\n' + description;\nconst urls = item.uploadedUrls || [];\n\n// Version extraction (vX.Y.Z)\nlet target_version = null;\nconst versionMatch = fullText.match(/\\b(v\\d+\\.\\d+\\.\\d+)\\b/i);\nif (versionMatch) target_version = versionMatch[1].toLowerCase();\n\n// Reproduction steps\nconst steps = [];\nlet inSteps = false;\nfor (const rawLine of fullText.split('\\n')) {\n  const t = rawLine.trim();\n  if (/steps to reproduce/i.test(t)) { inSteps = true; continue; }\n  if (inSteps) {\n    if (t.startsWith('#')) break;\n    const m = t.match(/^(\\d+\\.|[-*])\\s+(.+)$/);\n    if (m) steps.push(m[2].trim());\n  }\n}\nif (steps.length === 0) steps.push('Go to /settings', 'Click the \"Delete Account\" button');\n\n// Expected behavior\nlet expected_behavior = null;\nconst expectedMatch = fullText.match(/expected behavior[:\\s]*([\\s\\S]*?)(?:###|actual behavior|$)/i);\nif (expectedMatch && expectedMatch[1].trim()) {\n  expected_behavior = expectedMatch[1].trim().split('\\n')[0];\n} else {\n  expected_behavior = 'Account is deleted and a success message appears';\n}\n\n// Actual behavior\nlet actual_behavior = null;\nconst actualMatch = fullText.match(/actual behavior[:\\s]*([\\s\\S]*?)(?:###|$)/i);\nif (actualMatch && actualMatch[1].trim()) {\n  actual_behavior = actualMatch[1].trim().split('\\n')[0];\n}\n\nconst mediaMd = urls.length\n  ? urls.map(u => '![' + (u.split('/').pop() || 'attachment') + '](' + u + ')').join('\\n\\n')\n  : '_No attachments provided._';\n\nconst stepsMd = steps.map((s, i) => (i + 1) + '. ' + s).join('\\n');\n\nconst pristine_markdown = [\n  '## Summary',\n  title,\n  '',\n  '## Steps to Reproduce',\n  stepsMd,\n  '',\n  '## Expected Behavior',\n  expected_behavior || '_Not specified_',\n  '',\n  '## Actual Behavior',\n  actual_behavior || description || '_Not specified_',\n  '',\n  '## Media',\n  mediaMd\n].join('\\n');\n\nconst isValidVersion = target_version !== null && /^v\\d+\\.\\d+\\.\\d+$/.test(target_version);\n\nreturn [{\n  json: {\n    ...item,\n    target_version,\n    reproduction_steps: steps,\n    expected_behavior,\n    actual_behavior,\n    pristine_markdown,\n    isValidVersion\n  }\n}];"
+      },
+      "id": "node-gatekeeper-fallback",
+      "name": "LLM Gatekeeper (Fallback)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        360
+      ],
+      "notes": "Deterministic parser that produces the same schema as the LLM node."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/events' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -60,12 +223,15 @@
             }
           ]
         },
+        "options": {
+          "continueOnFail": true
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "run_id",
-              "value": "={{ 'issue_' + $json.issueNumber }}"
+              "value": "={{ 'jira_' + $json.issueKey }}"
             },
             {
               "name": "stage",
@@ -73,31 +239,23 @@
             },
             {
               "name": "message",
-              "value": "={{ 'Received issue #' + $json.issueNumber + ': ' + $json.title }}"
+              "value": "={{ 'Received Jira issue ' + $json.issueKey + ': ' + $json.title }}"
             },
             {
               "name": "data",
-              "value": "={{ { issueNumber: $json.issueNumber, title: $json.title } }}"
+              "value": "={{ { issueKey: $json.issueKey, title: $json.title, attachments: $json.uploadedUrls } }}"
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-emit-received",
       "name": "Emit ISSUE_RECEIVED",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [780, 200]
-    },
-    {
-      "parameters": {
-        "jsCode": "// LLM / Rule Extraction per Section 5.1\n// Prompt Schema: { target_version, reproduction_steps, expected_behavior, reported_behavior }\n\nconst item = $('Parse Webhook').first().json;\nconst title = item.title || '';\nconst body = item.body || '';\nconst fullText = `${title}\\n\\n${body}`;\n\n// 1. Version extraction\nlet target_version = null;\nconst versionMatch = fullText.match(/\\b(v\\d+\\.\\d+\\.\\d+)\\b/i) || fullText.match(/version[:\\s]+([0-9]+\\.[0-9]+\\.[0-9]+)/i);\nif (versionMatch) {\n  let v = versionMatch[1];\n  if (!v.startsWith('v') && !v.startsWith('V')) {\n    v = 'v' + v;\n  }\n  target_version = v.toLowerCase();\n}\n\n// 2. Reproduction steps extraction\nconst reproduction_steps = [];\nconst stepLines = fullText.split('\\n');\nlet inSteps = false;\nfor (const line of stepLines) {\n  const trimmed = line.trim();\n  if (/steps to reproduce/i.test(trimmed)) {\n    inSteps = true;\n    continue;\n  }\n  if (inSteps) {\n    if (trimmed.startsWith('#') || (trimmed.length === 0 && reproduction_steps.length > 0)) {\n      if (trimmed.startsWith('#')) break;\n    }\n    const match = trimmed.match(/^(\\d+\\.|[-*])\\s+(.+)$/);\n    if (match) {\n      reproduction_steps.push(match[2].trim());\n    }\n  }\n}\n\n// Fallback steps if header was missing\nif (reproduction_steps.length === 0) {\n  const generalMatches = fullText.match(/^\\d+\\.\\s+(.+)$/gm);\n  if (generalMatches) {\n    for (const m of generalMatches) {\n      reproduction_steps.push(m.replace(/^\\d+\\.\\s+/, '').trim());\n    }\n  }\n}\nif (reproduction_steps.length === 0) {\n  reproduction_steps.push('Go to /settings', 'Click the \"Delete Account\" button');\n}\n\n// 3. Expected behavior extraction\nlet expected_behavior = null;\nconst expectedMatch = fullText.match(/expected behavior[:\\s]*([\\s\\S]*?)(?:###|actual behavior|$)/i);\nif (expectedMatch && expectedMatch[1].trim()) {\n  expected_behavior = expectedMatch[1].trim().split('\\n')[0];\n} else {\n  expected_behavior = 'Account is deleted and a success message appears';\n}\n\n// 4. Reported behavior extraction\nlet reported_behavior = null;\nconst actualMatch = fullText.match(/actual behavior[:\\s]*([\\s\\S]*?)(?:###|$)/i);\nif (actualMatch && actualMatch[1].trim()) {\n  reported_behavior = actualMatch[1].trim().split('\\n')[0];\n} else {\n  reported_behavior = 'Button fails or server errors';\n}\n\nconst isValidVersion = target_version !== null && /^v\\d+\\.\\d+\\.\\d+$/.test(target_version);\n\nreturn [{\n  json: {\n    ...item,\n    target_version,\n    reproduction_steps,\n    expected_behavior,\n    reported_behavior,\n    isValidVersion\n  }\n}];"
-      },
-      "id": "node-extract-details",
-      "name": "Extract Details (LLM / Parser)",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [980, 200]
+      "position": [
+        1900,
+        300
+      ]
     },
     {
       "parameters": {
@@ -114,12 +272,15 @@
       "name": "If Valid Version",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
-      "position": [1180, 200]
+      "position": [
+        2120,
+        300
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/events",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/events' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -133,12 +294,15 @@
             }
           ]
         },
+        "options": {
+          "continueOnFail": true
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "run_id",
-              "value": "={{ 'issue_' + $json.issueNumber }}"
+              "value": "={{ 'jira_' + $json.issueKey }}"
             },
             {
               "name": "stage",
@@ -146,62 +310,67 @@
             },
             {
               "name": "message",
-              "value": "Could not determine target version from issue report."
+              "value": "Could not determine target version from Jira issue report."
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-emit-aborted",
       "name": "Emit ABORTED",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1380, 360]
+      "position": [
+        2340,
+        460
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://api.github.com/repos/' + $json.repoOwner + '/' + $json.repoName + '/issues/' + $json.issueNumber + '/comments' }}",
+        "url": "={{ 'https://' + $env.JIRA_DOMAIN + '/rest/api/2/issue/' + $json.issueKey + '/comment' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "={{ 'Bearer ' + ($env.GITHUB_TOKEN || '') }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Auto-Repro-Bot"
+              "value": "={{ 'Basic ' + Buffer.from(($env.JIRA_EMAIL || '') + ':' + ($env.JIRA_API_TOKEN || '')).toString('base64') }}"
             },
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
             }
           ]
+        },
+        "options": {
+          "continueOnFail": true
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "body",
-              "value": "### ℹ️ Auto-Repro: Version Required\nCould not determine version from the issue description. Please specify a valid version tag (e.g. `v1.1.0` or `v1.0.0`) so the autonomous reproduction agent can spin up a clean environment."
+              "value": "Auto-Repro could not determine a version tag from this report. Please add a version (for example v1.1.0) so the agent can reproduce it."
             }
           ]
-        },
-        "options": {
-          "continueOnFail": true
         }
       },
-      "id": "node-comment-ask-version",
-      "name": "GitHub Comment: Ask Version",
+      "id": "node-jira-comment-version",
+      "name": "Jira: Ask For Version",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 360]
+      "position": [
+        2560,
+        460
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/provision",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/provision' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -215,6 +384,7 @@
             }
           ]
         },
+        "options": {},
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -224,22 +394,24 @@
             },
             {
               "name": "issue_number",
-              "value": "={{ $json.issueNumber }}"
+              "value": "={{ $json.issueKey }}"
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-provision",
       "name": "Provision Container",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1380, 100]
+      "position": [
+        2340,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/tinyfish/run",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/tinyfish/run' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -252,6 +424,10 @@
               "value": "={{ $env.PROVISIONER_TOKEN || 'autorepro_secret_token_123' }}"
             }
           ]
+        },
+        "options": {
+          "continueOnFail": true,
+          "timeout": 120000
         },
         "sendBody": true,
         "bodyParameters": {
@@ -262,47 +438,49 @@
             },
             {
               "name": "steps",
-              "value": "={{ $('Extract Details (LLM / Parser)').first().json.reproduction_steps }}"
+              "value": "={{ $('LLM Gatekeeper (Fallback)').first().json.reproduction_steps }}"
             },
             {
               "name": "expected_behavior",
-              "value": "={{ $('Extract Details (LLM / Parser)').first().json.expected_behavior }}"
+              "value": "={{ $('LLM Gatekeeper (Fallback)').first().json.expected_behavior }}"
             },
             {
               "name": "version",
-              "value": "={{ $('Extract Details (LLM / Parser)').first().json.target_version }}"
+              "value": "={{ $('LLM Gatekeeper (Fallback)').first().json.target_version }}"
             },
             {
               "name": "run_id",
               "value": "={{ $json.run_id }}"
             }
           ]
-        },
-        "options": {
-          "continueOnFail": true,
-          "timeout": 120000
         }
       },
       "id": "node-tinyfish",
       "name": "TinyFish Agent",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 100]
+      "position": [
+        2560,
+        200
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// Section 5.2 Verdict Logic\nconst tinyfish = $input.first().json;\nconst extractData = $('Extract Details (LLM / Parser)').first().json;\nconst provData = $('Provision Container').first().json;\n\nconst version = extractData.target_version || 'unknown';\nconst steps = extractData.reproduction_steps || [];\nconst run_id = provData.run_id;\n\nlet verdict = 'NOT_REPRODUCED';\nlet isReproduced = false;\n\nif (!tinyfish || tinyfish.completed === false) {\n  verdict = 'INCONCLUSIVE';\n} else {\n  const hasNetworkError = Array.isArray(tinyfish.network_errors) && tinyfish.network_errors.some(e => e.status >= 400);\n  const hasConsoleError = Array.isArray(tinyfish.console_errors) && tinyfish.console_errors.length > 0;\n  const hasVisibleError = Array.isArray(tinyfish.visible_errors) && tinyfish.visible_errors.length > 0;\n\n  if (hasNetworkError || hasConsoleError || hasVisibleError) {\n    verdict = 'REPRODUCED';\n    isReproduced = true;\n  } else {\n    verdict = 'NOT_REPRODUCED';\n  }\n}\n\nlet markdown = '';\nconst screenshotUrl = tinyfish.screenshot_url || '';\nconst screenshotMd = screenshotUrl ? `\\n![screenshot](${screenshotUrl})` : '';\n\nif (verdict === 'REPRODUCED') {\n  const stepsMd = steps.map((s, i) => `${i + 1}. ${s}`).join('\\n');\n  const netEvidence = (tinyfish.network_errors && tinyfish.network_errors.length > 0)\n    ? tinyfish.network_errors.map(e => `- Network: \`${e.method} ${e.url}\` → **${e.status}**`).join('\\n')\n    : '';\n  const consoleEvidence = (tinyfish.console_errors && tinyfish.console_errors.length > 0)\n    ? tinyfish.console_errors.map(c => `- Console: \`${c}\``).join('\\n')\n    : '';\n  const evidence = [netEvidence, consoleEvidence].filter(Boolean).join('\\n');\n\n  markdown = `### ✅ Agent Verified: Bug reproduced\n**Version tested:** \\`${version}\\` (fresh disposable container)\n**Steps executed:**\n${stepsMd}\n**Observed:** ${tinyfish.final_ui_state}\n**Evidence:**\n${evidence}${screenshotMd}\n\n_Verified automatically by Auto-Repro (TinyFish agent). Environment destroyed after test._`;\n} else if (verdict === 'NOT_REPRODUCED') {\n  markdown = `### ❌ Agent Could Not Reproduce\n**Version tested:** \\`${version}\\` (fresh disposable container)\nFollowing the reported steps on a clean environment, the expected behavior occurred: ${tinyfish.final_ui_state}.\nThis may be caused by a cached/old client, a different version, or local configuration. Please try a hard refresh, confirm your version, and share any additional details.${screenshotMd}\n\n_Verified automatically by Auto-Repro. Environment destroyed after test._`;\n} else {\n  markdown = `### ⚠️ Agent Verification Inconclusive\n**Version tested:** \\`${version}\\`\nThe agent could not complete verification. Reason: ${tinyfish.agent_summary || 'Task timed out or was interrupted'}.\nA maintainer will review this issue manually.\n\n_Auto-Repro pipeline._`;\n}\n\nreturn [{\n  json: {\n    ...extractData,\n    run_id,\n    verdict,\n    markdown,\n    observations: tinyfish\n  }\n}];"
+        "jsCode": "// Route decision: only a REPRODUCED verdict reaches GitHub.\nconst gate = $('LLM Gatekeeper (Fallback)').first().json;\nconst tf = $('TinyFish Agent').first().json || {};\n\nlet verdict = 'NOT_REPRODUCED';\nif (!tf || tf.completed === false) {\n  verdict = 'INCONCLUSIVE';\n} else {\n  const hasNet = Array.isArray(tf.network_errors) && tf.network_errors.some(e => e.status >= 400);\n  const hasCon = Array.isArray(tf.console_errors) && tf.console_errors.length > 0;\n  const hasVis = Array.isArray(tf.visible_errors) && tf.visible_errors.length > 0;\n  if (hasNet || hasCon || hasVis) verdict = 'REPRODUCED';\n}\n\nreturn [{\n  json: {\n    ...gate,\n    verdict,\n    shouldCreateGithubIssue: verdict === 'REPRODUCED',\n    observations: tf\n  }\n}];"
       },
-      "id": "node-build-verdict",
-      "name": "Verdict & Markdown",
+      "id": "node-route-verdict",
+      "name": "Route on Verdict",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1780, 100]
+      "position": [
+        2780,
+        200
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/events",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/events' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -316,12 +494,15 @@
             }
           ]
         },
+        "options": {
+          "continueOnFail": true
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "run_id",
-              "value": "={{ $json.run_id }}"
+              "value": "={{ 'jira_' + $json.issueKey }}"
             },
             {
               "name": "stage",
@@ -336,19 +517,118 @@
               "value": "={{ { verdict: $json.verdict, observations: $json.observations } }}"
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "node-emit-verdict",
       "name": "Emit VERDICT",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1980, 100]
+      "position": [
+        3000,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.shouldCreateGithubIssue }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-reproduced",
+      "name": "If REPRODUCED",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        3220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compose the GitHub issue title/body from the pristine markdown.\nconst item = $('Route on Verdict').first().json;\nconst issueTitle = '[Jira ' + (item.issueKey || 'N/A') + '] ' + (item.title || 'Bug report');\n\nreturn [{\n  json: {\n    ...item,\n    githubIssueTitle: issueTitle,\n    githubIssueBody: item.pristine_markdown\n  }\n}];"
+      },
+      "id": "node-prepare-github-issue",
+      "name": "Prepare GitHub Issue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        100
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ 'https://api.github.com/repos/' + $json.repoOwner + '/' + $json.repoName + '/issues/' + $json.issueNumber + '/comments' }}",
+        "url": "={{ 'https://api.github.com/repos/' + ($env.GITHUB_REPO_OWNER || '') + '/' + ($env.GITHUB_REPO_NAME || 'taskboard') + '/issues' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + ($env.GITHUB_TOKEN || '') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Auto-Repro-Bot"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "title",
+              "value": "={{ $json.githubIssueTitle }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ $json.githubIssueBody }}"
+            }
+          ]
+        }
+      },
+      "id": "node-create-github-issue",
+      "name": "Create GitHub Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3660,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build the TinyFish proof comment (structured evidence).\nconst gate = $('LLM Gatekeeper (Fallback)').first().json;\nconst tf = $('TinyFish Agent').first().json || {};\nconst verdict = gate.verdict || 'INCONCLUSIVE';\n\nconst net = (tf.network_errors || []).map(e => '- Network: `' + e.method + ' ' + e.url + '` -> **' + e.status + '**').join('\\n');\nconst con = (tf.console_errors || []).map(c => '- Console: `' + c + '`').join('\\n');\nconst vis = (tf.visible_errors || []).map(v => '- Visible: `' + v + '`').join('\\n');\nconst evidence = [net, con, vis].filter(Boolean).join('\\n') || '_No errors captured._';\nconst shot = tf.screenshot_url ? '\\n\\n![screenshot](' + tf.screenshot_url + ')' : '';\n\nconst body = [\n  '### Agent Verification Evidence (' + verdict + ')',\n  '**Version tested:** `' + (gate.target_version || 'unknown') + '` (fresh disposable container)',\n  '**Final UI state:** ' + (tf.final_ui_state || 'n/a'),\n  '',\n  '**Evidence:**',\n  evidence + shot,\n  '',\n  '_Generated automatically by Auto-Repro (TinyFish agent). The test environment was destroyed after verification._'\n].join('\\n');\n\nreturn [{ json: { ...gate, tinyfishComment: body } }];"
+      },
+      "id": "node-build-comment",
+      "name": "Build Proof Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3880,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.github.com/repos/' + ($env.GITHUB_REPO_OWNER || '') + '/' + ($env.GITHUB_REPO_NAME || 'taskboard') + '/issues/' + $('Create GitHub Issue').first().json.number + '/comments' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -366,29 +646,176 @@
             }
           ]
         },
+        "options": {
+          "continueOnFail": true
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "body",
-              "value": "={{ $json.markdown }}"
+              "value": "={{ $json.tinyfishComment }}"
             }
           ]
-        },
-        "options": {
-          "continueOnFail": true
         }
       },
       "id": "node-comment-github",
       "name": "Post GitHub Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2180, 100]
+      "position": [
+        4100,
+        100
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.PROVISIONER_URL || 'http://provisioner:4000' }}/teardown",
+        "url": "={{ 'https://' + $env.JIRA_DOMAIN + '/rest/api/2/issue/' + $('Route on Verdict').first().json.issueKey + '/transitions' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from(($env.JIRA_EMAIL || '') + ':' + ($env.JIRA_API_TOKEN || '')).toString('base64') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "transition",
+              "value": "={{ { id: ($env.JIRA_TRANSITION_SENT_TO_ENG || \"21\") } }}"
+            }
+          ]
+        }
+      },
+      "id": "node-jira-transition-eng",
+      "name": "Jira: Send to Engineering",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4320,
+        100
+      ],
+      "notes": "Transition name/id is project specific — set JIRA_TRANSITION_SENT_TO_ENG."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compose the Jira failure comment when the bug could not be reproduced.\nconst item = $('Route on Verdict').first().json;\nconst tf = item.observations || {};\n\nconst comment = [\n  'h3. Auto-Repro: Could not reproduce',\n  '*Version tested:* ' + (item.target_version || 'unknown'),\n  '*Result:* ' + item.verdict,\n  '*Final UI state:* ' + (tf.final_ui_state || 'n/a'),\n  '',\n  'The autonomous agent followed the reported steps on a clean environment and the expected behavior occurred.',\n  'Please confirm your version, try a hard refresh, and attach any additional details (screenshots, console logs).'\n].join('\\n');\n\nreturn [{ json: { ...item, jiraComment: comment } }];"
+      },
+      "id": "node-prepare-jira-comment",
+      "name": "Prepare Jira Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://' + $env.JIRA_DOMAIN + '/rest/api/2/issue/' + $json.issueKey + '/comment' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from(($env.JIRA_EMAIL || '') + ':' + ($env.JIRA_API_TOKEN || '')).toString('base64') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "body",
+              "value": "={{ $json.jiraComment }}"
+            }
+          ]
+        }
+      },
+      "id": "node-jira-comment-incomplete",
+      "name": "Jira: Ask For Info",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3660,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://' + $env.JIRA_DOMAIN + '/rest/api/2/issue/' + $('Route on Verdict').first().json.issueKey + '/transitions' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Basic ' + Buffer.from(($env.JIRA_EMAIL || '') + ':' + ($env.JIRA_API_TOKEN || '')).toString('base64') }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "continueOnFail": true
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "transition",
+              "value": "={{ { id: ($env.JIRA_TRANSITION_CANNOT_REPRODUCE || \"31\") } }}"
+            }
+          ]
+        }
+      },
+      "id": "node-jira-transition-incomplete",
+      "name": "Jira: Cannot Reproduce",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3880,
+        320
+      ],
+      "notes": "Transition name/id is project specific — set JIRA_TRANSITION_CANNOT_REPRODUCE."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ ($env.PROVISIONER_URL || 'http://provisioner:4000') + '/teardown' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -402,50 +829,131 @@
             }
           ]
         },
+        "options": {
+          "continueOnFail": true
+        },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
             {
               "name": "run_id",
-              "value": "={{ $json.run_id }}"
+              "value": "={{ $('Provision Container').first().json.run_id }}"
             }
           ]
-        },
-        "options": {
-          "continueOnFail": true
         }
       },
       "id": "node-teardown",
       "name": "Teardown Container",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2380, 100]
+      "position": [
+        4540,
+        200
+      ]
     }
   ],
   "connections": {
-    "GitHub Webhook": {
+    "Jira Webhook": {
       "main": [
         [
           {
-            "node": "Parse Webhook",
+            "node": "Parse Jira Issue",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse Webhook": {
+    "Parse Jira Issue": {
       "main": [
         [
           {
-            "node": "If Action Opened",
+            "node": "Has Attachments?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "If Action Opened": {
+    "Has Attachments?": {
+      "main": [
+        [
+          {
+            "node": "Build Jira Auth",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Attachments Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Jira Auth": {
+      "main": [
+        [
+          {
+            "node": "Download Jira Attachment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Jira Attachment": {
+      "main": [
+        [
+          {
+            "node": "Upload to Provisioner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Provisioner": {
+      "main": [
+        [
+          {
+            "node": "Collect Uploaded Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Attachments Path": {
+      "main": [
+        [
+          {
+            "node": "Collect Uploaded Media",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Uploaded Media": {
+      "main": [
+        [
+          {
+            "node": "LLM Gatekeeper",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "LLM Gatekeeper (Fallback)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Gatekeeper (Fallback)": {
       "main": [
         [
           {
@@ -457,17 +965,6 @@
       ]
     },
     "Emit ISSUE_RECEIVED": {
-      "main": [
-        [
-          {
-            "node": "Extract Details (LLM / Parser)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract Details (LLM / Parser)": {
       "main": [
         [
           {
@@ -500,7 +997,7 @@
       "main": [
         [
           {
-            "node": "GitHub Comment: Ask Version",
+            "node": "Jira: Ask For Version",
             "type": "main",
             "index": 0
           }
@@ -522,14 +1019,14 @@
       "main": [
         [
           {
-            "node": "Verdict & Markdown",
+            "node": "Route on Verdict",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Verdict & Markdown": {
+    "Route on Verdict": {
       "main": [
         [
           {
@@ -544,6 +1041,57 @@
       "main": [
         [
           {
+            "node": "If REPRODUCED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If REPRODUCED": {
+      "main": [
+        [
+          {
+            "node": "Prepare GitHub Issue",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Jira Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare GitHub Issue": {
+      "main": [
+        [
+          {
+            "node": "Create GitHub Issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create GitHub Issue": {
+      "main": [
+        [
+          {
+            "node": "Build Proof Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Proof Comment": {
+      "main": [
+        [
+          {
             "node": "Post GitHub Comment",
             "type": "main",
             "index": 0
@@ -552,6 +1100,50 @@
       ]
     },
     "Post GitHub Comment": {
+      "main": [
+        [
+          {
+            "node": "Jira: Send to Engineering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira: Send to Engineering": {
+      "main": [
+        [
+          {
+            "node": "Teardown Container",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Jira Comment": {
+      "main": [
+        [
+          {
+            "node": "Jira: Ask For Info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira: Ask For Info": {
+      "main": [
+        [
+          {
+            "node": "Jira: Cannot Reproduce",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jira: Cannot Reproduce": {
       "main": [
         [
           {
@@ -565,5 +1157,6 @@
   },
   "settings": {
     "executionOrder": "v1"
-  }
+  },
+  "pinData": {}
 }
