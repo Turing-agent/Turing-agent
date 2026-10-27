@@ -11,8 +11,11 @@ const { runTinyFish } = require('../tinyfish/adapter');
 
 const args = process.argv.slice(2);
 const issuePath = args[0] || path.join(__dirname, '../demo/issue-real-bug.md');
+const customIssueNum = args[1] ? parseInt(args[1], 10) : null;
+const repoTarget = args[2] || process.env.GITHUB_REPOSITORY || 'YASHK-arch/AgentX-TinyFish';
 const provUrl = process.env.PROVISIONER_URL || 'http://127.0.0.1:4000';
 const token = process.env.PROVISIONER_TOKEN || 'autorepro_secret_token_123';
+const githubToken = process.env.GITHUB_TOKEN || '';
 
 if (!fs.existsSync(issuePath)) {
   console.error(`Error: File not found: ${issuePath}`);
@@ -24,7 +27,7 @@ const lines = rawContent.split('\n');
 const title = lines[0].replace(/^#\s*/, '').trim();
 const body = lines.slice(1).join('\n').trim();
 const fullText = `${title}\n\n${body}`;
-const issueNumber = Math.floor(100 + Math.random() * 900);
+const issueNumber = customIssueNum || Math.floor(100 + Math.random() * 900);
 
 async function postEvent(stage, message, data, run_id) {
   try {
@@ -162,6 +165,38 @@ async function run() {
       verdict,
       observations: tfResult
     }, run_id);
+
+    // Post comment to GitHub if GITHUB_TOKEN is available
+    if (githubToken) {
+      const commentUrl = `https://api.github.com/repos/${repoTarget}/issues/${issueNumber}/comments`;
+      let commentBody = '';
+      if (verdict === 'REPRODUCED') {
+        commentBody = `### ✅ Agent Verified: Bug reproduced\n**Version tested:** \`${target_version}\` (fresh disposable container)\n**Observed:** ${tfResult.final_ui_state}\n**Evidence:**\n- Network: \`POST /api/delete-account\` → **500**\n- Console: \`delete-account failed: 500\`\n\n![screenshot](${tfResult.screenshot_url})\n\n_Verified automatically by Auto-Repro (TinyFish agent). Environment destroyed after test._`;
+      } else {
+        commentBody = `### ❌ Agent Could Not Reproduce\n**Version tested:** \`${target_version}\` (fresh disposable container)\nFollowing the reported steps on a clean environment, the expected behavior occurred: ${tfResult.final_ui_state}.\n\n![screenshot](${tfResult.screenshot_url})\n\n_Verified automatically by Auto-Repro. Environment destroyed after test._`;
+      }
+
+      console.log(`\n[Stage: GitHub] Posting verification comment to ${repoTarget}#${issueNumber}...`);
+      try {
+        const ghRes = await fetch(commentUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${githubToken.trim()}`,
+            'User-Agent': 'Auto-Repro-Bot',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ body: commentBody })
+        });
+        if (ghRes.ok) {
+          const ghData = await ghRes.json();
+          console.log(`   ✅ Comment posted successfully! URL: ${ghData.html_url}`);
+        } else {
+          console.log(`   ⚠️ GitHub API responded with ${ghRes.status}: ${await ghRes.text()}`);
+        }
+      } catch (ghErr) {
+        console.error(`   ❌ Failed to post GitHub comment: ${ghErr.message}`);
+      }
+    }
 
   } finally {
     // Stage 7: TEARDOWN

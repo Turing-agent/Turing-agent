@@ -17,11 +17,16 @@ fi
 
 TITLE=$(head -n 1 "$ISSUE_FILE" | sed 's/^# //')
 BODY=$(tail -n +2 "$ISSUE_FILE")
-ISSUE_NUM=$((100 + RANDOM % 900))
+CUSTOM_ISSUE_NUM="${2:-}"
+REPO_TARGET="${3:-"${GITHUB_REPOSITORY:-"YASHK-arch/AgentX-TinyFish"}"}"
+REPO_OWNER=$(echo "$REPO_TARGET" | cut -d'/' -f1)
+REPO_NAME=$(echo "$REPO_TARGET" | cut -d'/' -f2)
+ISSUE_NUM="${CUSTOM_ISSUE_NUM:-$((100 + RANDOM % 900))}"
 
 echo "=========================================================="
 echo "  Auto-Repro Simulation: GitHub Issue Opened"
 echo "  File: $ISSUE_FILE"
+echo "  Target Repo: $REPO_TARGET"
 echo "  Issue #: $ISSUE_NUM"
 echo "  Title: $TITLE"
 echo "=========================================================="
@@ -32,6 +37,8 @@ PAYLOAD=$(node -e "
   const title = process.argv[1];
   const body = process.argv[2];
   const issueNum = parseInt(process.argv[3], 10);
+  const repoOwner = process.argv[4];
+  const repoName = process.argv[5];
   const payload = {
     action: 'opened',
     issue: {
@@ -41,13 +48,13 @@ PAYLOAD=$(node -e "
       user: { login: 'demo-reporter' }
     },
     repository: {
-      name: 'AgentX-TinyFish',
-      owner: { login: 'YASHK-arch' }
+      name: repoName,
+      owner: { login: repoOwner }
     },
     sender: { login: 'demo-reporter' }
   };
   console.log(JSON.stringify(payload));
-" "$TITLE" "$BODY" "$ISSUE_NUM")
+" "$TITLE" "$BODY" "$ISSUE_NUM" "$REPO_OWNER" "$REPO_NAME")
 
 # Calculate HMAC SHA-256 signature
 SIG="sha256=$(printf "%s" "$PAYLOAD" | openssl dgst -sha256 -hmac "$GITHUB_SECRET" | sed 's/^.* //')"
@@ -74,10 +81,10 @@ if [ "$N8N_RUNNING" = true ]; then
   else
     echo "==> n8n webhook returned HTTP $HTTP_STATUS (Workflow may not be activated yet in n8n UI)."
     echo "==> Falling back to automated pipeline runner against Provisioner ($PROVISIONER_URL)..."
-    node "${ROOT_DIR}/scripts/runner.js" "$ISSUE_FILE"
+    node "${ROOT_DIR}/scripts/runner.js" "$ISSUE_FILE" "$ISSUE_NUM" "$REPO_TARGET"
   fi
 else
   echo "==> Note: n8n is not listening on localhost:5678."
   echo "==> Executing automated pipeline runner against Provisioner ($PROVISIONER_URL)..."
-  node "${ROOT_DIR}/scripts/runner.js" "$ISSUE_FILE"
+  node "${ROOT_DIR}/scripts/runner.js" "$ISSUE_FILE" "$ISSUE_NUM" "$REPO_TARGET"
 fi
