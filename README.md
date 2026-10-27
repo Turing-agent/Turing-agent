@@ -2,30 +2,39 @@
 
 > **"A bouncer for your issue tracker: every bug report is reproduced on a clean, disposable environment by an AI web agent before a human looks at it."**
 
-Built for the **"Swim with TinyFish"** Hackathon. Auto-Repro turns incoming GitHub issue bug reports into deterministic, autonomous UI verifications.
+Built for the **"Swim with TinyFish"** Hackathon. Auto-Repro turns incoming bug reports — from Jira or GitHub — into deterministic, autonomous UI verifications.
 
 ---
 
 ## ⚡ Architecture Overview
 
 ```
-GitHub (issues.opened)
-        │  webhook (HMAC-SHA256 verified)
+Jira Cloud (Issue created)  ← the raw "front door" for complaints
+        │  webhook (issue created, with attachments)
         ▼
 ┌──────────────────────────── Host / VPS (Public IP) ────────────────────────────┐
 │                                                                                │
 │  n8n Pipeline Engine / Webhook Receiver                                        │
-│    ├─ Webhook: receives GitHub issue event                                      │
-│    ├─ LLM / Parser: extracts {target_version, reproduction_steps, expected}    │
-│    ├─ HTTP → Provisioner /provision                                            │
-│    ├─ HTTP → TinyFish Agent API                                                │
-│    ├─ Judge: computes verdict (REPRODUCED / NOT_REPRODUCED / INCONCLUSIVE)     │
-│    ├─ GitHub API: posts structured Markdown comment with evidence              │
+│    ├─ Webhook: receives Jira issue event                                       │
+│    ├─ Download attachments via Jira API (Basic Auth: email:api_token)          │
+│    ├─ POST /upload → re-host media on the provisioner, get public URLs         │
+│    ├─ LLM Gatekeeper: rewrite the rant into pristine Markdown + JSON schema    │
+│    │     { target_version, reproduction_steps, expected_behavior,              │
+│    │       pristine_markdown (with embedded media) }                           │
+│    ├─ HTTP → Provisioner /provision   (starts Docker container)                │
+│    ├─ HTTP → TinyFish Agent API       (navigates the real UI)                  │
+│    ├─ Route on verdict:                                                        │
+│    │     ├─ REPRODUCED  → Create GitHub Issue (pristine markdown)              │
+│    │     │                → Post TinyFish proof comment                        │
+│    │     │                → Jira: transition to "Sent to Engineering"          │
+│    │     └─ NOT REPRODUCED → GitHub untouched; Jira comment + "Cannot Reproduce"│
 │    └─ HTTP → Provisioner /teardown (idempotent, always cleans up)              │
 │                                                                                │
 │  Provisioner Service (:4000)                                                   │
 │    ├─ POST /provision   → spins up taskboard:<version>, assigns port 8100-8199 │
 │    ├─ POST /teardown    → docker rm -f container                              │
+│    ├─ POST /upload      → stores Jira attachments under public/uploads         │
+│    ├─ GET  /uploads/*   → serves migrated media at a public URL                │
 │    ├─ POST /events      → records & broadcasts pipeline progress               │
 │    ├─ GET  /events/stream (SSE) → streams real-time updates to Dashboard       │
 │    ├─ GET  /            → serves live dark-mode visual dashboard               │
@@ -38,18 +47,28 @@ GitHub (issues.opened)
    TinyFish Cloud Web Agent ── navigates public_url ── returns UI state + errors
 ```
 
+### The Bouncer Rule
+
+| TinyFish verdict | GitHub | Jira |
+| :--- | :--- | :--- |
+| **REPRODUCED** | New issue created from `pristine_markdown`, plus a proof comment | Transitioned to "Sent to Engineering" |
+| **NOT REPRODUCED** | Never touched | Comment asking for more info + transitioned to "Cannot Reproduce" |
+
 ---
 
 ## 🚀 Key Features & Guardrails
 
 1. **TinyFish Web Agent at the Core**: TinyFish receives the target URL and natural-language steps, clicks through the real UI, observes visual states, and captures network & console errors.
-2. **Deterministic Planted Target App (`TaskBoard`)**:
+2. **Jira as the Front Door (The Bouncer)**: Complaints land in Jira. n8n migrates the attachments to a public URL, rewrites the report into a pristine Markdown template, and tests the bug via TinyFish. GitHub is only touched when the bug is actually reproduced.
+3. **Self-Hosted Media Migration**: Jira attachments are downloaded with Basic Auth and re-hosted by the existing provisioner (`POST /upload` → `/uploads/<hash>`). No S3 or third-party image host required.
+4. **Deterministic Planted Target App (`TaskBoard`)**:
    - `taskboard:v1.0.0`: Working version (Account deletion succeeds with 200 OK).
    - `taskboard:v1.1.0`: Planted bug (Account deletion triggers 500 NullReference error).
-3. **Zero Orphaned Containers**: Every run is guaranteed to destroy its container upon completion, failure, or timeout. Additionally, a background **TTL reaper** continuously enforces a 10-minute maximum container lifetime.
-4. **Command Injection Prevention**: Version inputs strictly validate against `^v\d+\.\d+\.\d+$` and must match a pre-existing local image. Docker interactions use argument arrays (`execFile`), never raw shell strings.
-5. **Real-time Live Dashboard**: Single-page, vanilla JS dashboard streaming real-time pipeline status over Server-Sent Events (SSE).
-6. **Dual Execution Modes**: Works seamlessly with **n8n** (via `n8n/auto-repro-workflow.json`) AND standalone via `scripts/simulate-issue.sh` and `scripts/runner.js`.
+5. **Zero Orphaned Containers**: Every run is guaranteed to destroy its container upon completion, failure, or timeout. Additionally, a background **TTL reaper** continuously enforces a 10-minute maximum container lifetime.
+6. **Command Injection Prevention**: Version inputs strictly validate against `^v\d+\.\d+\.\d+$` and must match a pre-existing local image. Docker interactions use argument arrays (`execFile`), never raw shell strings.
+7. **Upload Guardrails**: `/upload` requires `X-Auth-Token`, only accepts image/video MIME types, caps files at 25 MB, and stores everything under a random hash filename (no path traversal).
+8. **Real-time Live Dashboard**: Single-page, vanilla JS dashboard streaming real-time pipeline status over Server-Sent Events (SSE).
+9. **Dual Execution Modes**: Works seamlessly with **n8n** (via `n8n/auto-repro-workflow.json`) AND standalone via `scripts/simulate-issue.sh` and `scripts/runner.js`.
 
 ---
 
@@ -67,15 +86,16 @@ auto-repro/
 │   └── public/
 │       ├── index.html         # Task list and navigation
 │       └── settings.html      # Danger Zone: "Delete Account" button
-├── provisioner/               # Orchestration & UI service (:4000)
+├── provisioner/               # Orchestration, upload host & UI service (:4000)
 │   ├── Dockerfile             # Container definition for provisioner
-│   ├── server.js              # Provision, teardown, SSE, HMAC, and TTL reaper
+│   ├── server.js              # Provision, teardown, upload, SSE, HMAC, and TTL reaper
 │   └── public/
-│       └── dashboard.html     # Live projector-friendly dark dashboard
+│       ├── dashboard.html     # Live projector-friendly dark dashboard
+│       └── uploads/           # Migrated Jira attachments (git-ignored, temporary)
 ├── tinyfish/
 │   └── adapter.js             # TinyFish Web Agent API adapter & mock mode
 ├── n8n/
-│   └── auto-repro-workflow.json # Importable n8n workflow definition
+│   └── auto-repro-workflow.json # Importable n8n workflow (Jira front door)
 ├── scripts/
 │   ├── build-images.sh        # Builds taskboard:v1.0.0 and taskboard:v1.1.0
 │   ├── setup-vps.sh           # VPS initial configuration (Docker, UFW ports)
@@ -100,7 +120,7 @@ auto-repro/
 ```bash
 cp .env.example .env
 ```
-*(Default settings work out of the box with `TINYFISH_MOCK=true`).*
+*(Default settings work out of the box with `TINYFISH_MOCK=true`. Add your Jira and GitHub credentials to run the full Jira → n8n → GitHub pipeline.)*
 
 ### 3. Build Demo Target Images
 ```bash
@@ -144,13 +164,66 @@ The TinyFish Web Agent adapter is located in [`tinyfish/adapter.js`](file:///Use
 
 ---
 
-## 🔄 n8n Self-Hosted Workflow
+## 🔄 n8n Self-Hosted Workflow (Jira Front Door)
 
 To run with full n8n automation:
 1. Start the stack: `docker compose up -d`
 2. Open n8n at `http://localhost:5678`
 3. Click **Import from File** and select `n8n/auto-repro-workflow.json`
-4. Set credentials for GitHub and activate the workflow.
+4. Set credentials for GitHub and Jira, then activate the workflow.
+
+### Jira setup
+
+1. **Create a Jira Cloud project** (free tier is fine) and note your site domain (e.g. `yourcompany.atlassian.net`).
+2. **Create an Atlassian API token**: https://id.atlassian.com/manage-profile/security/api-tokens
+3. **Fill in `.env`**:
+   ```bash
+   JIRA_DOMAIN=yourcompany.atlassian.net
+   JIRA_EMAIL=your.email@domain.com
+   JIRA_API_TOKEN=your_atlassian_api_token
+   GITHUB_REPO_OWNER=yourusername
+   GITHUB_REPO_NAME=taskboard
+   ```
+4. **Register the Jira webhook**: Jira → **Settings → System → WebHooks → Create a WebHook**.
+   - URL: `http://<VPS_PUBLIC_IP>:5678/webhook/jira-issues`
+   - Events: tick **Issue → created** (and optionally **updated**)
+   - A JQL filter such as `project = SUP` keeps unrelated issues out.
+5. **Find your transition IDs** (project specific) and set them in `.env`:
+   ```bash
+   curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+     "https://$JIRA_DOMAIN/rest/api/2/issue/<ISSUE-KEY>/transitions" | jq '.transitions[] | {id, name}'
+   ```
+   Then set `JIRA_TRANSITION_SENT_TO_ENG` and `JIRA_TRANSITION_CANNOT_REPRODUCE`.
+
+### Attachment migration (no S3 needed)
+
+Jira attachments are protected, so the workflow:
+1. Reads `issue.fields.attachment[].content` from the webhook payload.
+2. Downloads each file with `Authorization: Basic base64(JIRA_EMAIL:JIRA_API_TOKEN)`.
+3. `POST`s the bytes to the provisioner's `/upload` endpoint.
+4. Receives a public URL (`http://<VPS_PUBLIC_IP>:4000/uploads/<hash>.png`) and embeds it in the `pristine_markdown`.
+
+Test the upload endpoint directly:
+```bash
+curl -F "file=@test.png" -H "X-Auth-Token: $PROVISIONER_TOKEN" \
+  http://localhost:4000/upload
+# -> {"url":"http://127.0.0.1:4000/uploads/<hash>.png", ...}
+```
+
+### LLM Gatekeeper
+
+The `LLM Gatekeeper` node (`@n8n/n8n-nodes-langchain.openAi`) implements the schema below and ships **disabled** so the workflow imports without an OpenAI credential:
+
+```json
+{
+  "target_version": "string|null",
+  "reproduction_steps": ["string"],
+  "expected_behavior": "string|null",
+  "pristine_markdown": "string"
+}
+```
+
+To enable it, open the node, add an OpenAI credential, and disable `LLM Gatekeeper (Fallback)`. The fallback Code node produces the same schema deterministically, so the pipeline works either way.
 
 ---
 
@@ -160,6 +233,8 @@ To run with full n8n automation:
 - **No Shell Interpolation**: All Docker operations use `child_process.execFile` with direct arguments array.
 - **Ephemeral Isolation**: Each test container has strict resource limits (256MB memory, 0.5 CPU) and is torn down immediately after testing.
 - **TTL Reaper**: Background interval reaps any containers older than 10 minutes automatically.
+- **Upload Endpoint Guardrails**: `/upload` requires `X-Auth-Token`, accepts only image/video MIME types (plus Jira's `application/octet-stream`), caps uploads at 25 MB, and stores files under random hash names so uploads cannot traverse paths or overwrite each other.
+- **Secrets Stay in Env**: Jira and GitHub credentials are read from environment variables only, never hardcoded. The `pristine_markdown` and GitHub issue body contain user content and migrated media URLs, not tokens.
 - **HMAC SHA-256 Webhook Verification**: GitHub webhooks are verified with constant-time equality check.
 
 ---

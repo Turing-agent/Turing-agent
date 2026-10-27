@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const net = require('net');
+const multer = require('multer');
 const { execFile } = require('child_process');
 const crypto = require('crypto');
 require('dotenv').config();
@@ -15,9 +17,54 @@ const PROVISIONER_TOKEN = process.env.PROVISIONER_TOKEN || 'autorepro_secret_tok
 const PORT_RANGE_START = parseInt(process.env.PORT_RANGE_START || '8100', 10);
 const PORT_RANGE_END = parseInt(process.env.PORT_RANGE_END || '8199', 10);
 
+// Directory where migrated Jira attachments are hosted (temporary public storage)
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'public', 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve migrated attachments publicly at /uploads/<file>
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+// Allowed attachment types (Jira images/videos) mapped to a canonical extension
+const ALLOWED_UPLOAD_TYPES = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/bmp': '.bmp',
+  'image/svg+xml': '.svg',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'video/quicktime': '.mov',
+  'video/x-msvideo': '.avi',
+  'application/octet-stream': null // Jira sometimes serves attachments as octet-stream
+};
+
+// Store uploads under a random hash filename to avoid collisions / path traversal
+const uploadStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const hash = crypto.randomBytes(16).toString('hex');
+    const mapped = ALLOWED_UPLOAD_TYPES[file.mimetype];
+    let ext = mapped || path.extname(file.originalname || '').toLowerCase();
+    // Guard against weird/unsafe extensions
+    if (!/^\.[a-z0-9]{1,8}$/.test(ext)) ext = '.bin';
+    cb(null, `${hash}${ext}`);
+  }
+});
+
+const upload = multer({
+  storage: uploadStorage,
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (!(file.mimetype in ALLOWED_UPLOAD_TYPES)) {
+      return cb(new Error(`unsupported_file_type: ${file.mimetype}`));
+    }
+    cb(null, true);
+  }
+});
 
 // In-memory event store (last 200) and active SSE clients
 const eventLog = [];
@@ -391,6 +438,27 @@ app.post('/events', (req, res) => {
 
   broadcastEvent(event);
   res.status(200).json({ ok: true, event });
+});
+
+// POST /upload - Receive a Jira attachment and host it publicly
+app.post('/upload', (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(status).json({ error: 'upload_failed', message: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'no_file', message: 'Expected a multipart/form-data field named "file"' });
+    }
+
+    const url = `http://${VPS_PUBLIC_IP}:${PORT}/uploads/${req.file.filename}`;
+    res.status(200).json({
+      url,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+  });
 });
 
 // POST /provision - Spawn ephemeral container
