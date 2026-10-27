@@ -125,18 +125,20 @@ async function findFreePort() {
 // Poll container URL until 200 OK or timeout (30s)
 async function waitForContainer(port, timeoutMs = 30000) {
   const start = Date.now();
-  const url = `http://127.0.0.1:${port}/version`;
+  const hosts = ['127.0.0.1', 'host.docker.internal'];
   while (Date.now() - start < timeoutMs) {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      if (res.status === 200) {
-        return true;
+    for (const host of hosts) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 1000);
+        const res = await fetch(`http://${host}:${port}/version`, { signal: controller.signal });
+        clearTimeout(timer);
+        if (res.status === 200) {
+          return true;
+        }
+      } catch (e) {
+        // Container starting up
       }
-    } catch (e) {
-      // Container starting up
     }
     await new Promise((r) => setTimeout(r, 500));
   }

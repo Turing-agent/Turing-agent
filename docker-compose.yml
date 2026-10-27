@@ -34,7 +34,7 @@ services:
       - N8N_PROTOCOL=http
       - WEBHOOK_URL=http://${VPS_PUBLIC_IP:-localhost}:5678/
       - GENERIC_TIMEZONE=UTC
-      - PROVISIONER_URL=http://provisioner:4000
+      - PROVISIONER_URL=${PROVISIONER_URL:-http://host.docker.internal:4000}
       - PROVISIONER_TOKEN=${PROVISIONER_TOKEN:-autorepro_secret_token_123}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - GITHUB_WEBHOOK_SECRET=${GITHUB_WEBHOOK_SECRET:-auto_repro_webhook_secret_xyz}
@@ -48,6 +48,8 @@ services:
       - TINYFISH_API_KEY=${TINYFISH_API_KEY:-}
       - TINYFISH_MOCK=${TINYFISH_MOCK:-true}
       - N8N_BASIC_AUTH_ACTIVE=false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - n8n_data:/home/node/.n8n
     networks:
