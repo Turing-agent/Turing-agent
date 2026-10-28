@@ -379,3 +379,268 @@ async def run_tinyfish(payload: RunTinyFishPayload):
                 sandbox.teardown()
             except Exception as teardown_err:
                 logger.warning(f"Error during sandbox teardown: {teardown_err}")
+
+
+# ---------------------------------------------------------------------------
+# /resolve-issue  — AI-powered code resolution endpoint
+# ---------------------------------------------------------------------------
+
+class ResolveIssuePayload(BaseModel):
+    """Payload from n8n to resolve a GitHub issue with real code changes."""
+    issue_title: str = Field(..., description="GitHub issue title")
+    issue_body: str = Field(..., description="GitHub issue body (full description)")
+    issue_number: int = Field(..., description="GitHub issue number")
+    repo_full_name: str = Field(..., description="owner/repo, e.g. YASHK-arch/RepoOwl-extension")
+    base_tree_sha: str = Field(..., description="SHA of the base git tree to build changes on")
+    discussion_url: Optional[str] = Field(None, description="Link back to the original discussion")
+
+
+class FileChange(BaseModel):
+    path: str
+    content: str
+
+
+class ResolveIssueResult(BaseModel):
+    changes: list[FileChange]
+    commit_message: str
+    summary: str
+
+
+# Extensions to consider as source code (no binaries/lock files)
+_SOURCE_EXTS = re.compile(
+    r'\.(js|ts|jsx|tsx|mjs|cjs|py|html|css|scss|less|json|yaml|yml|md|sh|go|rs|java|kt|'
+    r'swift|rb|php|c|cpp|h|hpp|vue|svelte|astro|toml|ini|conf|env\.example)$',
+    re.IGNORECASE
+)
+_EXCLUDE_DIRS = re.compile(
+    r'(^|/)(\.'
+    r'|node_modules|dist|build|\.next|__pycache__|\.pyc|coverage|\.cache|vendor|'
+    r'\.turbo|\.svelte-kit|\.nuxt|out)/',
+    re.IGNORECASE
+)
+
+import re
+import base64
+
+
+def _github_headers(token: str) -> dict:
+    return {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "Turing-agent",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 40) -> dict[str, str]:
+    """
+    Fetches the recursive git tree, then downloads content of relevant source files.
+    Returns {path: content} for files likely to be relevant.
+    """
+    import requests
+    headers = _github_headers(token)
+
+    # 1. Get recursive tree
+    resp = requests.get(
+        f"https://api.github.com/repos/{repo}/git/trees/{tree_sha}?recursive=1",
+        headers=headers, timeout=30
+    )
+    resp.raise_for_status()
+    tree = resp.json().get("tree", [])
+
+    blobs = [
+        f for f in tree
+        if f["type"] == "blob"
+        and _SOURCE_EXTS.search(f["path"])
+        and not _EXCLUDE_DIRS.search("/" + f["path"])
+        and f.get("size", 0) < 80_000  # skip large files
+    ]
+
+    # Prefer smaller files first; cap at max_files
+    blobs.sort(key=lambda f: f.get("size", 0))
+    blobs = blobs[:max_files]
+
+    contents: dict[str, str] = {}
+    for blob in blobs:
+        try:
+            r = requests.get(
+                f"https://api.github.com/repos/{repo}/contents/{blob['path']}",
+                headers=headers, timeout=20
+            )
+            r.raise_for_status()
+            data = r.json()
+            raw = data.get("content", "")
+            if raw:
+                contents[blob["path"]] = base64.b64decode(raw).decode("utf-8", errors="replace")
+        except Exception as fetch_err:
+            logger.warning(f"[resolve-issue] Could not fetch {blob['path']}: {fetch_err}")
+
+    return contents
+
+
+def _call_groq_for_fix(
+    issue_title: str,
+    issue_body: str,
+    issue_number: int,
+    repo: str,
+    file_contents: dict[str, str],
+    discussion_url: Optional[str],
+) -> ResolveIssueResult:
+    """
+    Calls Groq (llama-3.1-70b-versatile) with issue + codebase context.
+    Returns structured file changes.
+    """
+    import json
+    from groq import Groq
+
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GROQ_API_KEY is not set. Add GROQ_API_KEY=gsk_... to your .env file. "
+            "Free keys available at https://console.groq.com/"
+        )
+
+    client = Groq(api_key=api_key)
+
+    # Build file context (truncate very long files to fit context window)
+    file_context_parts = []
+    total_chars = 0
+    char_budget = 60_000  # ~20k tokens for file content
+    for path, content in file_contents.items():
+        snippet = content[:3000] if len(content) > 3000 else content
+        part = f"### File: `{path}`\n```\n{snippet}\n```"
+        if total_chars + len(part) > char_budget:
+            break
+        file_context_parts.append(part)
+        total_chars += len(part)
+
+    file_context = "\n\n".join(file_context_parts) if file_context_parts else "No relevant source files found."
+
+    system_prompt = (
+        "You are an expert software engineer and autonomous code repair agent.\n"
+        "Given a GitHub issue description and the repository's source files, you will:\n"
+        "1. Identify exactly which file(s) need to be modified to resolve the issue.\n"
+        "2. Write the complete, corrected file content for each changed file.\n"
+        "3. Return ONLY a valid JSON object — no prose, no markdown fences — with this exact schema:\n\n"
+        "{\n"
+        '  "changes": [\n'
+        '    { "path": "relative/path/to/file.ext", "content": "...full file content..." }\n'
+        "  ],\n"
+        '  "commit_message": "fix: short description of what was changed",\n'
+        '  "summary": "1-2 sentence explanation of the fix"\n'
+        "}\n\n"
+        "Rules:\n"
+        "- Always include the COMPLETE file content (not diffs, not partial snippets).\n"
+        "- Only include files that actually need to change.\n"
+        "- Commit message must follow conventional commits (fix:, feat:, chore:).\n"
+        "- If the fix is unclear from the code, make the best educated change based on the issue description.\n"
+        "- Return ONLY the JSON object, nothing else."
+    )
+
+    user_prompt = (
+        f"## GitHub Issue #{issue_number}: {issue_title}\n\n"
+        f"**Repository**: `{repo}`\n"
+        + (f"**Source Discussion**: {discussion_url}\n" if discussion_url else "")
+        + f"\n### Issue Description:\n{issue_body}\n\n"
+        "---\n\n"
+        "### Repository Source Files:\n\n"
+        f"{file_context}\n\n"
+        "---\n\n"
+        "Now resolve this issue by returning the required JSON object with complete file changes."
+    )
+
+    logger.info(f"[resolve-issue] Calling Groq (llama-3.3-70b-versatile) for issue #{issue_number}...")
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.1,
+        max_tokens=8000,
+        response_format={"type": "json_object"},
+    )
+
+    raw = response.choices[0].message.content.strip()
+    logger.info(f"[resolve-issue] Groq responded ({len(raw)} chars)")
+
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Groq returned invalid JSON: {e}\n\nRaw response:\n{raw[:500]}")
+
+    changes = [FileChange(**c) for c in parsed.get("changes", [])]
+    return ResolveIssueResult(
+        changes=changes,
+        commit_message=parsed.get("commit_message", f"fix: resolve issue #{issue_number}"),
+        summary=parsed.get("summary", "Automated fix generated by Turing-agent."),
+    )
+
+
+@app.post("/resolve-issue")
+async def resolve_issue(payload: ResolveIssuePayload):
+    """
+    AI-powered code resolution endpoint.
+
+    Called by n8n after a maintainer approves an issue.
+    Fetches relevant repo files, asks Groq to generate a fix,
+    and returns structured file changes + commit message.
+
+    n8n then:
+      1. Creates GitHub blobs for each changed file
+      2. Creates a new Git tree on top of base_tree_sha
+      3. Commits that tree to a feature branch
+      4. Opens a PR
+
+    Required env var: GROQ_API_KEY (free at https://console.groq.com/)
+    Optional env var: GITHUB_TOKEN (needed for GitHub API calls)
+    """
+    logger.info(f"[resolve-issue] Request: issue #{payload.issue_number} — {payload.issue_title}")
+
+    github_token = os.getenv("GITHUB_TOKEN")
+
+    try:
+        # Step 1: Fetch repo source files
+        logger.info(f"[resolve-issue] Fetching files from {payload.repo_full_name} @ tree {payload.base_tree_sha[:8]}...")
+        file_contents = _fetch_repo_files(
+            repo=payload.repo_full_name,
+            tree_sha=payload.base_tree_sha,
+            token=github_token,
+        )
+        logger.info(f"[resolve-issue] Fetched {len(file_contents)} source files.")
+
+        # Step 2: Call Groq LLM for code fix
+        result = _call_groq_for_fix(
+            issue_title=payload.issue_title,
+            issue_body=payload.issue_body,
+            issue_number=payload.issue_number,
+            repo=payload.repo_full_name,
+            file_contents=file_contents,
+            discussion_url=payload.discussion_url,
+        )
+
+        logger.info(
+            f"[resolve-issue] Groq generated {len(result.changes)} file change(s). "
+            f"Commit: '{result.commit_message}'"
+        )
+
+        return {
+            "status": "success",
+            "commit_message": result.commit_message,
+            "summary": result.summary,
+            "changes": [{"path": c.path, "content": c.content} for c in result.changes],
+            "files_analyzed": len(file_contents),
+        }
+
+    except RuntimeError as e:
+        # Config errors (missing API key etc.) — surface clearly
+        logger.error(f"[resolve-issue] Configuration error: {e}")
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+    except Exception as e:
+        logger.error(f"[resolve-issue] Unexpected error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e), "traceback": traceback.format_exc()},
+        )
+
