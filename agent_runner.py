@@ -148,44 +148,88 @@ class AgentRunner:
 
         # Step 1: Check Live TinyFish API capability
         if not self.mock_mode and self.api_key:
-            try:
-                logger.info("[AgentRunner] Dispatching reproduction to Live TinyFish Agent API...")
-                goal = (
-                    f"Open {target_url}. Execute these steps: "
-                    + " -> ".join(plan.steps)
-                    + f". Expected behavior: {plan.expected_behavior}. Observe any error banners, network failures, or console errors."
-                )
-                headers = {
-                    "Content-Type": "application/json",
-                    "X-API-Key": self.api_key
-                }
-                payload = {
-                    "url": target_url,
-                    "goal": goal,
-                    "browser_profile": "lite",
-                    "agent_config": {"max_steps": 25, "max_duration_seconds": 90}
-                }
-                res = requests.post("https://agent.tinyfish.ai/v1/automation/run", json=payload, headers=headers, timeout=60)
-                if res.ok:
-                    data = res.json().get("result", {})
-                    # Generate screencast video artifact
-                    screencast = generate_screencast_video(
-                        steps=plan.steps,
-                        error_message="HTTP 500: Failed request in agent run"
+            run_url = target_url
+            if ("localhost" in run_url or "127.0.0.1" in run_url) and getattr(plan, "live_url", None):
+                run_url = plan.live_url
+
+            # TinyFish cloud agent requires a reachable public URL (http/https not localhost)
+            if not ("localhost" in run_url or "127.0.0.1" in run_url):
+                try:
+                    logger.info(f"[AgentRunner] Dispatching reproduction to Live TinyFish Agent API for {run_url}...")
+                    goal = (
+                        f"Open {run_url}. Execute these reproduction steps: "
+                        + " -> ".join(plan.steps)
+                        + f". Expected behavior: {plan.expected_behavior}. Observe any error banners, network failures, or unexpected UI state."
                     )
-                    return AgentHuntResult(
-                        reproduced=True,
-                        final_ui_state=data.get("final_ui_state", "Error banner observed on page"),
-                        steps_executed=plan.steps,
-                        console_logs=data.get("console_errors", ["delete-account failed: 500"]),
-                        network_logs=data.get("network_errors", [{"method": "POST", "url": "/api/delete-account", "status": 500}]),
-                        screencast_path=screencast,
-                        screencast_url=data.get("screenshot_url") or "https://images.unsplash.com/photo-1594322436404-5a0526db4d13?w=800",
-                        screenshots=[data.get("screenshot_url")] if data.get("screenshot_url") else [],
-                        agent_summary=data.get("agent_summary", "Autonomous agent triggered bug successfully.")
+                    headers = {
+                        "Content-Type": "application/json",
+                        "X-API-Key": self.api_key
+                    }
+                    payload = {
+                        "url": run_url,
+                        "goal": goal,
+                        "browser_profile": "lite",
+                    }
+                    start_res = requests.post(
+                        "https://agent.tinyfish.ai/v1/automation/run-async",
+                        json=payload,
+                        headers=headers,
+                        timeout=15
                     )
-            except Exception as e:
-                logger.warning(f"[AgentRunner] Live TinyFish API call failed: {e}. Falling back to sandbox engine.")
+                    if start_res.ok:
+                        run_id = start_res.json().get("run_id")
+                        logger.info(f"[AgentRunner] TinyFish agent run started: {run_id}. Polling for completion...")
+
+                        final_run_data = None
+                        for _ in range(25):
+                            time.sleep(2)
+                            poll_res = requests.get(
+                                f"https://agent.tinyfish.ai/v1/runs/{run_id}",
+                                headers=headers,
+                                timeout=10
+                            )
+                            if poll_res.ok:
+                                rdata = poll_res.json()
+                                status = rdata.get("status")
+                                if status in ("COMPLETED", "FAILED", "CANCELLED"):
+                                    final_run_data = rdata
+                                    break
+
+                        if final_run_data and final_run_data.get("status") == "COMPLETED":
+                            result_obj = final_run_data.get("result", {})
+                            summary_text = (
+                                result_obj.get("result")
+                                if isinstance(result_obj, dict)
+                                else str(result_obj)
+                            ) or "TinyFish agent completed reproduction run."
+
+                            steps_data = final_run_data.get("steps", [])
+                            screenshots = [
+                                s["screenshot"] for s in steps_data
+                                if s.get("screenshot")
+                            ]
+                            executed_actions = [
+                                s.get("action", "") for s in steps_data
+                                if s.get("action")
+                            ] or plan.steps
+
+                            streaming_url = final_run_data.get("streaming_url")
+                            first_screenshot = screenshots[0] if screenshots else None
+
+                            logger.info(f"[AgentRunner] TinyFish completed! {len(screenshots)} screenshot(s) captured.")
+                            return AgentHuntResult(
+                                reproduced=True,
+                                final_ui_state=summary_text,
+                                steps_executed=executed_actions,
+                                console_logs=[f"TinyFish agent stream: {streaming_url}"] if streaming_url else [],
+                                network_logs=[],
+                                screencast_path=None,
+                                screencast_url=first_screenshot or streaming_url,
+                                screenshots=screenshots,
+                                agent_summary=f"**TinyFish Autonomous Agent Investigation**:\n{summary_text}"
+                            )
+                except Exception as e:
+                    logger.warning(f"[AgentRunner] Live TinyFish API call failed: {e}. Falling back to sandbox engine.")
 
         # Step 2: Sandbox Autonomous Engine
         logger.info("[AgentRunner] Executing autonomous reproduction steps inside sandbox...")

@@ -8,6 +8,8 @@ Run the server locally on port 8000 using:
 
 import os
 import sys
+import time
+import requests
 import logging
 import traceback
 from typing import Optional, Dict, Any
@@ -393,6 +395,7 @@ class ResolveIssuePayload(BaseModel):
     repo_full_name: str = Field(..., description="owner/repo, e.g. YASHK-arch/RepoOwl-extension")
     base_tree_sha: str = Field(..., description="SHA of the base git tree to build changes on")
     discussion_url: Optional[str] = Field(None, description="Link back to the original discussion")
+    live_url: Optional[str] = Field(None, description="Optional live website or deployment URL to inspect with TinyFish")
 
 
 class FileChange(BaseModel):
@@ -487,6 +490,62 @@ def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 15)
     return contents
 
 
+def _extract_live_url(text: str) -> Optional[str]:
+    """Finds live deployment URLs in issue description."""
+    urls = re.findall(r'https?://[^\s)\]"<>]+', text)
+    for u in urls:
+        low = u.lower()
+        if any(h in low for h in ['vercel.app', 'netlify.app', 'pages.dev', 'koyeb.app', 'onrender.com']):
+            return u
+        if not any(h in low for h in ['github.com', 'githubusercontent.com', 'loom.com', 'groq.com', 'tinyfish.ai']):
+            return u
+    return None
+
+
+def _run_tinyfish_inspection(url: str, goal: str, api_key: str) -> tuple[Optional[str], list[str]]:
+    """Runs TinyFish web agent on the target URL to observe the live bug state and capture screenshots."""
+    import time
+    try:
+        logger.info(f"[TinyFish Inspection] Running agent on live URL: {url}...")
+        headers = {"Content-Type": "application/json", "X-API-Key": api_key}
+        res = requests.post(
+            "https://agent.tinyfish.ai/v1/automation/run-async",
+            json={
+                "url": url,
+                "goal": goal,
+                "browser_profile": "lite",
+            },
+            headers=headers,
+            timeout=15
+        )
+        if not res.ok:
+            logger.warning(f"[TinyFish Inspection] Start failed: {res.status_code} {res.text}")
+            return None, []
+
+        run_id = res.json().get("run_id")
+        logger.info(f"[TinyFish Inspection] Started run {run_id}. Polling...")
+
+        for _ in range(15):
+            time.sleep(2)
+            poll = requests.get(f"https://agent.tinyfish.ai/v1/runs/{run_id}", headers=headers, timeout=10)
+            if poll.ok:
+                data = poll.json()
+                if data.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
+                    result_obj = data.get("result", {})
+                    summary = (
+                        result_obj.get("result")
+                        if isinstance(result_obj, dict)
+                        else str(result_obj)
+                    )
+                    steps = data.get("steps", [])
+                    screenshots = [s["screenshot"] for s in steps if s.get("screenshot")]
+                    logger.info(f"[TinyFish Inspection] Done! Found {len(screenshots)} screenshots.")
+                    return summary, screenshots
+    except Exception as e:
+        logger.warning(f"[TinyFish Inspection] Exception during run: {e}")
+    return None, []
+
+
 def _call_groq_for_fix(
     issue_title: str,
     issue_body: str,
@@ -494,9 +553,10 @@ def _call_groq_for_fix(
     repo: str,
     file_contents: dict[str, str],
     discussion_url: Optional[str],
+    tinyfish_observation: Optional[str] = None,
 ) -> ResolveIssueResult:
     """
-    Calls Groq (llama-3.1-70b-versatile) with issue + codebase context.
+    Calls Groq (openai/gpt-oss-120b) with issue + codebase context + TinyFish observation.
     Returns structured file changes.
     """
     import json
@@ -550,6 +610,7 @@ def _call_groq_for_fix(
         f"## GitHub Issue #{issue_number}: {issue_title}\n\n"
         f"**Repository**: `{repo}`\n"
         + (f"**Source Discussion**: {discussion_url}\n" if discussion_url else "")
+        + (f"\n### 🐟 TinyFish Web Agent Live Observation:\n{tinyfish_observation}\n\n" if tinyfish_observation else "")
         + f"\n### Issue Description:\n{issue_body}\n\n"
         "---\n\n"
         "### Repository Source Files:\n\n"
@@ -639,7 +700,24 @@ def resolve_issue(payload: ResolveIssuePayload):
         )
         logger.info(f"[resolve-issue] Fetched {len(file_contents)} source files.")
 
-        # Step 2: Call Groq LLM for code fix
+        # Step 2: TinyFish Web Agent Live Site Inspection (if live URL found)
+        tinyfish_key = os.getenv("TINYFISH_API_KEY")
+        live_target_url = payload.live_url or _extract_live_url(payload.issue_body)
+        tf_summary = None
+        tf_screenshots = []
+
+        if live_target_url and tinyfish_key:
+            goal_prompt = (
+                f"Verify bug on {live_target_url}. Bug: {payload.issue_title}. "
+                "Observe page contents, navigation, buttons, and note any error banners or unexpected states."
+            )
+            tf_summary, tf_screenshots = _run_tinyfish_inspection(
+                url=live_target_url,
+                goal=goal_prompt,
+                api_key=tinyfish_key,
+            )
+
+        # Step 3: Call Groq LLM for code fix with repo context + TinyFish observation
         result = _call_groq_for_fix(
             issue_title=payload.issue_title,
             issue_body=payload.issue_body,
@@ -647,6 +725,7 @@ def resolve_issue(payload: ResolveIssuePayload):
             repo=payload.repo_full_name,
             file_contents=file_contents,
             discussion_url=payload.discussion_url,
+            tinyfish_observation=tf_summary,
         )
 
         logger.info(
@@ -660,6 +739,9 @@ def resolve_issue(payload: ResolveIssuePayload):
             "summary": result.summary,
             "changes": [{"path": c.path, "content": c.content} for c in result.changes],
             "files_analyzed": len(file_contents),
+            "tinyfish_summary": tf_summary,
+            "tinyfish_screenshots": tf_screenshots,
+            "live_url": live_target_url,
         }
 
     except RuntimeError as e:
