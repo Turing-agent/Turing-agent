@@ -1,0 +1,212 @@
+{
+  "name": "Turing-Agent Instant Collaborator Invite Acceptor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "accept-turing-invite",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": "Webhook (accept-turing-invite)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "webhookId": "accept-turing-invite"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.github.com/user/repository_invitations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-fetch-invites",
+      "name": "HTTP Request (Fetch Invites)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle array of pending invitations\nconst items = $input.all();\nif (!items || items.length === 0 || (items.length === 1 && (!items[0].json || Object.keys(items[0].json).length === 0))) {\n  return [{\n    json: {\n      hasInvites: false,\n      message: 'No pending invitations found for Turing-agent'\n    }\n  }];\n}\n\nconst output = [];\nfor (const item of items) {\n  const data = item.json;\n  if (Array.isArray(data)) {\n    for (const inv of data) {\n      output.push({ json: { ...inv, hasInvites: true } });\n    }\n  } else if (data && data.id) {\n    output.push({ json: { ...data, hasInvites: true } });\n  }\n}\n\nif (output.length === 0) {\n  return [{ json: { hasInvites: false, message: 'No pending invitations' } }];\n}\n\nreturn output;"
+      },
+      "id": "node-filter-invites",
+      "name": "Extract Pending Invitations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.hasInvites }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-invites",
+      "name": "Has Invites?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        840,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.github.com/user/repository_invitations/{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-accept-invite",
+      "name": "HTTP Request (Accept Invite)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    status: 'success',\n    message: 'Turing-agent accepted pending repository invitation!',\n    invitationId: $('HTTP Request (Fetch Invites)').first().json.id\n  }\n}];"
+      },
+      "id": "node-return-success",
+      "name": "Return Success Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    status: 'idle',\n    message: 'No pending collaborator invitations found for Turing-agent.'\n  }\n}];"
+      },
+      "id": "node-return-empty",
+      "name": "Return Empty Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        380
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook (accept-turing-invite)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Fetch Invites)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Fetch Invites)": {
+      "main": [
+        [
+          {
+            "node": "Extract Pending Invitations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Pending Invitations": {
+      "main": [
+        [
+          {
+            "node": "Has Invites?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Invites?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request (Accept Invite)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return Empty Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request (Accept Invite)": {
+      "main": [
+        [
+          {
+            "node": "Return Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,243 +1,260 @@
-# 🐟 Auto-Repro: Autonomous OSS Bug Verifier
+# Turing-Agent 🐟⚡
+### Autonomous GitHub QA & Codebase Investigation Agent
 
-> **"A bouncer for your issue tracker: every bug report is reproduced on a clean, disposable environment by an AI web agent before a human looks at it."**
-
-Built for the **"Swim with TinyFish"** Hackathon. Auto-Repro turns incoming bug reports — from Jira or GitHub — into deterministic, autonomous UI verifications.
-
----
-
-## ⚡ Architecture Overview
-
-```
-Jira Cloud (Issue created)  ← the raw "front door" for complaints
-        │  webhook (issue created, with attachments)
-        ▼
-┌──────────────────────────── Host / VPS (Public IP) ────────────────────────────┐
-│                                                                                │
-│  n8n Pipeline Engine / Webhook Receiver                                        │
-│    ├─ Webhook: receives Jira issue event                                       │
-│    ├─ Download attachments via Jira API (Basic Auth: email:api_token)          │
-│    ├─ POST /upload → re-host media on the provisioner, get public URLs         │
-│    ├─ LLM Gatekeeper: rewrite the rant into pristine Markdown + JSON schema    │
-│    │     { target_version, reproduction_steps, expected_behavior,              │
-│    │       pristine_markdown (with embedded media) }                           │
-│    ├─ HTTP → Provisioner /provision   (starts Docker container)                │
-│    ├─ HTTP → TinyFish Agent API       (navigates the real UI)                  │
-│    ├─ Route on verdict:                                                        │
-│    │     ├─ REPRODUCED  → Create GitHub Issue (pristine markdown)              │
-│    │     │                → Post TinyFish proof comment                        │
-│    │     │                → Jira: transition to "Sent to Engineering"          │
-│    │     └─ NOT REPRODUCED → GitHub untouched; Jira comment + "Cannot Reproduce"│
-│    └─ HTTP → Provisioner /teardown (idempotent, always cleans up)              │
-│                                                                                │
-│  Provisioner Service (:4000)                                                   │
-│    ├─ POST /provision   → spins up taskboard:<version>, assigns port 8100-8199 │
-│    ├─ POST /teardown    → docker rm -f container                              │
-│    ├─ POST /upload      → stores Jira attachments under public/uploads         │
-│    ├─ GET  /uploads/*   → serves migrated media at a public URL                │
-│    ├─ POST /events      → records & broadcasts pipeline progress               │
-│    ├─ GET  /events/stream (SSE) → streams real-time updates to Dashboard       │
-│    ├─ GET  /            → serves live dark-mode visual dashboard               │
-│    └─ TTL Reaper        → kills any test container older than 10 minutes       │
-│                                                                                │
-│  Disposable Containers: taskboard:<version> (Host ports 8100–8199)              │
-└────────────────────────────────────────────────────────────────────────────────┘
-        ▲
-        │ HTTPS API (Natural Language Task + Real UI Execution)
-   TinyFish Cloud Web Agent ── navigates public_url ── returns UI state + errors
-```
-
-### The Bouncer Rule
-
-| TinyFish verdict | GitHub | Jira |
-| :--- | :--- | :--- |
-| **REPRODUCED** | New issue created from `pristine_markdown`, plus a proof comment | Transitioned to "Sent to Engineering" |
-| **NOT REPRODUCED** | Never touched | Comment asking for more info + transitioned to "Cannot Reproduce" |
+**Turing-Agent** (powered by TinyFish) is an autonomous, multimodal QA and debugging agent designed for developer issue triaging and automated bug reproduction. Acting as a webhook-driven intelligence engine for an n8n orchestration pipeline, Turing-Agent intercepts bug reports from GitHub Discussions or Jira, analyzes screen recordings, provisions isolated ephemeral reproduction environments, hunts down runtime bugs, traces root causes in the codebase, and publishes verified fix patches.
 
 ---
 
-## 🚀 Key Features & Guardrails
+## 🏗️ System Architecture
 
-1. **TinyFish Web Agent at the Core**: TinyFish receives the target URL and natural-language steps, clicks through the real UI, observes visual states, and captures network & console errors.
-2. **Jira as the Front Door (The Bouncer)**: Complaints land in Jira. n8n migrates the attachments to a public URL, rewrites the report into a pristine Markdown template, and tests the bug via TinyFish. GitHub is only touched when the bug is actually reproduced.
-3. **Self-Hosted Media Migration**: Jira attachments are downloaded with Basic Auth and re-hosted by the existing provisioner (`POST /upload` → `/uploads/<hash>`). No S3 or third-party image host required.
-4. **Deterministic Planted Target App (`TaskBoard`)**:
-   - `taskboard:v1.0.0`: Working version (Account deletion succeeds with 200 OK).
-   - `taskboard:v1.1.0`: Planted bug (Account deletion triggers 500 NullReference error).
-5. **Zero Orphaned Containers**: Every run is guaranteed to destroy its container upon completion, failure, or timeout. Additionally, a background **TTL reaper** continuously enforces a 10-minute maximum container lifetime.
-6. **Command Injection Prevention**: Version inputs strictly validate against `^v\d+\.\d+\.\d+$` and must match a pre-existing local image. Docker interactions use argument arrays (`execFile`), never raw shell strings.
-7. **Upload Guardrails**: `/upload` requires `X-Auth-Token`, only accepts image/video MIME types, caps files at 25 MB, and stores everything under a random hash filename (no path traversal).
-8. **Real-time Live Dashboard**: Single-page, vanilla JS dashboard streaming real-time pipeline status over Server-Sent Events (SSE).
-9. **Dual Execution Modes**: Works seamlessly with **n8n** (via `n8n/auto-repro-workflow.json`) AND standalone via `scripts/simulate-issue.sh` and `scripts/runner.js`.
+```mermaid
+flowchart TD
+    A[GitHub Discussion / Jira Issue] -->|Webhook Intake| B[n8n Orchestration Pipeline]
+    B -->|POST /run-tinyfish| C[FastAPI Webhook Server: main.py]
 
----
+    subgraph "Phase 2: The Investigation"
+        C --> D[Phase 2.1: Multimodal Video Analysis]
+        D -->|OpenCV 1fps Frame Extraction| D1[BaseVisionModel: OpenAI gpt-4o / Local Model]
+        D1 -->|Structured Output| E[Bug Reproduction Plan]
 
-## 📦 Repository Structure
+        E --> F[Phase 2.2: Ephemeral Sandbox Provisioner]
+        F -->|Clone RepoOwl-extension| F1[Docker SDK Container / Ephemeral Workspace]
+        F1 -->|Port 8100-8199 & Dependencies| G[Live Sandbox Environment]
 
-```
-auto-repro/
-├── README.md                  # Setup, demo script, and documentation
-├── ASSUMPTIONS.md             # Key engineering decisions & assumptions
-├── .env.example               # Environment variables template
-├── docker-compose.yml         # Compose stack (n8n + provisioner)
-├── taskboard/                 # Target app (Node/Express + HTML/JS UI)
-│   ├── Dockerfile             # Multi-version Dockerfile (ARG APP_VERSION)
-│   ├── server.js              # In-memory API with v1.1.0 planted bug
-│   └── public/
-│       ├── index.html         # Task list and navigation
-│       └── settings.html      # Danger Zone: "Delete Account" button
-├── provisioner/               # Orchestration, upload host & UI service (:4000)
-│   ├── Dockerfile             # Container definition for provisioner
-│   ├── server.js              # Provision, teardown, upload, SSE, HMAC, and TTL reaper
-│   └── public/
-│       ├── dashboard.html     # Live projector-friendly dark dashboard
-│       └── uploads/           # Migrated Jira attachments (git-ignored, temporary)
-├── tinyfish/
-│   └── adapter.js             # TinyFish Web Agent API adapter & mock mode
-├── n8n/
-│   └── auto-repro-workflow.json # Importable n8n workflow (Jira front door)
-├── scripts/
-│   ├── build-images.sh        # Builds taskboard:v1.0.0 and taskboard:v1.1.0
-│   ├── setup-vps.sh           # VPS initial configuration (Docker, UFW ports)
-│   ├── runner.js              # Standalone pipeline execution engine
-│   ├── simulate-issue.sh      # Webhook simulation with HMAC SHA-256
-│   └── test-provisioner.sh    # Automated provisioner endpoint test suite
-└── demo/
-    ├── issue-real-bug.md      # Demo Issue 1: v1.1.0, Delete Account fails (500)
-    ├── issue-fake-bug.md      # Demo Issue 2: v1.0.0, Reporter claims delete fails
-    └── issue-no-version.md    # Demo Issue 3: Missing version tag (Aborts safely)
+        G --> H[Phase 2.3: Autonomous Hunt & Visual Capture]
+        H -->|Execute Plan Steps| H1[Agent Element Navigation & Trigger]
+        H1 -->|Intercept| H2[Console Logs & Network Errors 500]
+        H1 -->|OpenCV Render| H3[Screencast Video .mp4 & Screenshots]
+
+        H2 & H3 --> I[Phase 2.4: Repository Scrape & Root Cause Analysis]
+        I -->|Static/AST Scrape| I1[Codebase Correlator & LLM Debugger]
+        I1 -->|Diagnose Offending Line| J[Root Cause & Unified Diff Patch]
+    end
+
+    subgraph "Phase 3: Response & Resolution"
+        J --> K[Phase 3: Markdown Bug Verification Report]
+        K -->|JSON Response| B
+        B -->|Bot Comment| L[GitHub Discussion / Issue Resolved]
+    end
 ```
 
 ---
 
-## 🛠️ Quickstart (Run Locally in Under 2 Minutes)
+## 🚀 Key Modules & Architecture Breakdown
+
+### 1. Phase 2.1: Multimodal Video Analysis (`vision_module.py`)
+- **Video Download & Ingestion**: Safely downloads screen recording attachments from `video_url` (with fallback for missing or corrupted video links).
+- **OpenCV Keyframe Extractor**: Samples video stream at 1 frame per second (FPS), downscales frames for low-latency transmission, and base64-encodes them as high-quality JPEGs.
+- **Pluggable Multimodal Vision Engine (`BaseVisionModel`)**:
+  - `OpenAIVisionModel`: Utilizes `gpt-4o` with structured JSON schema output to identify UI state changes, user interactions, and error dialogs.
+  - `LocalVisionModelFallback`: Offline/local model fallback for environments without OpenAI API credentials or for local model swapping (e.g. Ollama, vLLM, Qwen2-VL).
+- **Structured Bug Reproduction Plan**: Generates targeted reproduction actions, expected behaviors, observed symptoms, target routes, and CSS selectors.
+
+### 2. Phase 2.2: Ephemeral Docker Sandbox (`docker_provisioner.py`)
+- **Container Lifecycle Management**: Uses the official Python `docker` SDK to provision ephemeral sandbox containers (`node:20-alpine`).
+- **Codebase Binding**: Clones `https://github.com/YASHK-arch/RepoOwl-extension.git` and mounts the repository directly into `/app`.
+- **Port Allocation**: Dynamically assigns free host ports within the `8100–8199` range.
+- **Resilient Fallback Mode**: If the host Docker daemon is offline or inaccessible, automatically activates an isolated local workspace sandbox without throwing uncaught exceptions or interrupting the pipeline.
+- **Guaranteed Cleanup**: Context-managed teardown (`stop`, `remove(force=True)`, temporary directory purging).
+
+### 3. Phase 2.3: Autonomous Hunt & Visual Capture (`agent_runner.py`)
+- **Autonomous Navigation**: Dispatches synthetic browser interactions executing the Bug Reproduction Plan against the sandbox UI.
+- **Log Interception**:
+  - **Console Logs**: Intercepts `console.error`, uncaught runtime exceptions, and stack traces.
+  - **Network Logs**: Records failed HTTP requests with status codes $\ge 400$.
+- **Screencast Generator**: Programmatically generates an actual browser screencast recording (`.mp4`) using OpenCV, visualizing the interaction sequence, button clicks, and error banner appearance.
+- **Live & Mock Execution**: Supports live TinyFish Agent API execution as well as deterministic simulation.
+
+### 4. Phase 2.4: Repository Scrape & Root Cause Analysis (`analyzer.py`)
+- **Repository Scraper**: Recursively indexes and scans JS, TS, JSON, and Python files from the cloned codebase.
+- **Semantic & Static Correlation**: Cross-references intercepted runtime exceptions and HTTP routes against the codebase AST.
+- **Root Cause Identification**: Employs deep LLM reasoning (or heuristic pattern matching) to pinpoint the exact file, start/end lines, and offending code snippet.
+- **Unified Diff Patch**: Automatically produces a GitHub-ready code patch fixing the bug.
+
+### 5. Phase 3: Response Orchestration (`main.py`)
+- **FastAPI Webhook Server**: Receives incoming n8n payloads at `POST /run-tinyfish`.
+- **Sequential Orchestrator**: Coordinates Phases 2.1 $\rightarrow$ 2.2 $\rightarrow$ 2.3 $\rightarrow$ 2.4 with guaranteed sandbox teardown.
+- **Comprehensive Markdown Report**: Assembles executive summary, video analysis, sandbox logs, screencast links, code traces, and recommended PR patches.
+
+---
+
+## 📁 Repository Structure
+
+```text
+AgentX-TinyFish/
+├── main.py                          # FastAPI webhook orchestrator & report compiler
+├── vision_module.py                 # Phase 2.1: OpenCV frame extraction & multimodal LLM vision
+├── docker_provisioner.py            # Phase 2.2: Ephemeral sandbox provisioner & live URL binding
+├── agent_runner.py                  # Phase 2.3: Autonomous hunt, log capture & screencast generation
+├── analyzer.py                      # Phase 2.4: Repository scrape, root cause analysis & patch diffs
+├── turing-agent-workflow.json       # n8n Pipeline: Bug intake -> Turing-Agent engine -> GitHub comment
+├── accept-turing-invite-workflow.json # n8n Pipeline: Instant collaborator invite acceptor
+├── scripts/                         # Setup and terminal helper utilities
+├── requirements.txt                 # Project dependencies (FastAPI, OpenCV, Docker, OpenAI, etc.)
+└── README.md                        # Project documentation and architecture guide
+```
+
+---
+
+## ⚡ Quickstart & Local Setup
 
 ### 1. Prerequisites
-- Docker & Docker Compose
-- Node.js (v18+)
+- Python 3.10+
+- Git
+- (Optional) Docker Desktop (for containerized sandboxes)
+- (Optional) OpenAI API Key (for live `gpt-4o` multimodal vision)
 
-### 2. Configure Environment
+### 2. Installation
+Clone the repository and install dependencies:
 ```bash
-cp .env.example .env
+git clone https://github.com/YASHK-arch/AgentX-TinyFish.git
+cd AgentX-TinyFish
+pip install -r requirements.txt
 ```
-*(Default settings work out of the box with `TINYFISH_MOCK=true`. Add your Jira and GitHub credentials to run the full Jira → n8n → GitHub pipeline.)*
 
-### 3. Build Demo Target Images
-```bash
-./scripts/build-images.sh
-```
-This builds `taskboard:v1.0.0` and `taskboard:v1.1.0`.
+### 3. Environment Configuration
+Create a `.env` file in the root directory:
+```env
+# Vision & LLM Configuration
+OPENAI_API_KEY=your_openai_api_key_here
+VISION_MODEL_PROVIDER=openai # 'openai' or 'local'
 
-### 4. Start Provisioner & Dashboard
-```bash
-cd provisioner && npm install && cd ..
-node provisioner/server.js
+# TinyFish Agent Configuration
+TINYFISH_API_KEY=
+TINYFISH_MOCK=true           # Set to false to use live TinyFish API
+
+# Port & Server Configuration
+PORT=8000
 ```
-The live dashboard is now available at **[http://localhost:4000](http://localhost:4000)**.
+
+### 4. Running the Backend Server
+Start the FastAPI server on port 8000:
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+To expose the local server to n8n webhooks:
+```bash
+ngrok http 8000
+```
 
 ---
 
-## 🎬 90-Second Demo Script
+## 📡 API Specification
 
-| Time | Action | What Happens / What to Say |
-| :--- | :--- | :--- |
-| **00:00 - 00:15** | Open `http://localhost:4000` | *"This is Auto-Repro: an AI-powered bouncer for OSS maintainers. Currently idle, 0 containers running."* |
-| **00:15 - 00:45** | Run `./scripts/simulate-issue.sh demo/issue-real-bug.md` | *"A user opens issue #430 claiming Delete Account crashes on v1.1.0. Auto-Repro extracts the version, spins up a fresh container on port 8100, and delegates navigation to TinyFish."* |
-| **00:45 - 01:05** | Watch Dashboard light up | *TinyFish clicks through `/settings`, triggers the 500 error, and captures network/console evidence. The dashboard immediately flashes **REPRODUCED** in bold red.* |
-| **01:05 - 01:15** | Check Terminal / `docker ps` | *The disposable container is instantly destroyed (`docker rm -f`). Zero leftover state.* |
-| **01:15 - 01:30** | Run `./scripts/simulate-issue.sh demo/issue-fake-bug.md` | *A user files a false alarm on v1.0.0. TinyFish verifies the clean UI and marks it **NOT_REPRODUCED** in green.* |
+### `POST /run-tinyfish`
+Webhook receiver endpoint triggered by n8n.
 
----
-
-## 🤖 TinyFish Integration
-
-The TinyFish Web Agent adapter is located in [`tinyfish/adapter.js`](file:///Users/omrajput/Desktop/Projects/Auto-Repro/tinyfish/adapter.js).
-
-### Supported Modes:
-1. **Mock Mode (`TINYFISH_MOCK=true` or missing API key)**:
-   - Inspects the ephemeral container dynamically.
-   - For `v1.1.0`: Returns reproduction output with 500 network error, console error, and error screenshot.
-   - For `v1.0.0`: Returns clean success output with 200 OK.
-2. **Live Agent API Mode (`TINYFISH_MOCK=false` and `TINYFISH_API_KEY` set)**:
-   - Dispatches natural-language goals to `POST https://agent.tinyfish.ai/v1/automation/run`.
-   - Uses `output_schema` to enforce standardized response normalization.
-
----
-
-## 🔄 n8n Self-Hosted Workflow (Jira Front Door)
-
-To run with full n8n automation:
-1. Start the stack: `docker compose up -d`
-2. Open n8n at `http://localhost:5678`
-3. Click **Import from File** and select `n8n/auto-repro-workflow.json`
-4. Set credentials for GitHub and Jira, then activate the workflow.
-
-### Jira setup
-
-1. **Create a Jira Cloud project** (free tier is fine) and note your site domain (e.g. `yourcompany.atlassian.net`).
-2. **Create an Atlassian API token**: https://id.atlassian.com/manage-profile/security/api-tokens
-3. **Fill in `.env`**:
-   ```bash
-   JIRA_DOMAIN=yourcompany.atlassian.net
-   JIRA_EMAIL=your.email@domain.com
-   JIRA_API_TOKEN=your_atlassian_api_token
-   GITHUB_REPO_OWNER=yourusername
-   GITHUB_REPO_NAME=taskboard
-   ```
-4. **Register the Jira webhook**: Jira → **Settings → System → WebHooks → Create a WebHook**.
-   - URL: `http://<VPS_PUBLIC_IP>:5678/webhook/jira-issues`
-   - Events: tick **Issue → created** (and optionally **updated**)
-   - A JQL filter such as `project = SUP` keeps unrelated issues out.
-5. **Find your transition IDs** (project specific) and set them in `.env`:
-   ```bash
-   curl -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
-     "https://$JIRA_DOMAIN/rest/api/2/issue/<ISSUE-KEY>/transitions" | jq '.transitions[] | {id, name}'
-   ```
-   Then set `JIRA_TRANSITION_SENT_TO_ENG` and `JIRA_TRANSITION_CANNOT_REPRODUCE`.
-
-### Attachment migration (no S3 needed)
-
-Jira attachments are protected, so the workflow:
-1. Reads `issue.fields.attachment[].content` from the webhook payload.
-2. Downloads each file with `Authorization: Basic base64(JIRA_EMAIL:JIRA_API_TOKEN)`.
-3. `POST`s the bytes to the provisioner's `/upload` endpoint.
-4. Receives a public URL (`http://<VPS_PUBLIC_IP>:4000/uploads/<hash>.png`) and embeds it in the `pristine_markdown`.
-
-Test the upload endpoint directly:
-```bash
-curl -F "file=@test.png" -H "X-Auth-Token: $PROVISIONER_TOKEN" \
-  http://localhost:4000/upload
-# -> {"url":"http://127.0.0.1:4000/uploads/<hash>.png", ...}
-```
-
-### LLM Gatekeeper
-
-The `LLM Gatekeeper` node (`@n8n/n8n-nodes-langchain.openAi`) implements the schema below and ships **disabled** so the workflow imports without an OpenAI credential:
-
+#### Request Body (`application/json`):
 ```json
 {
-  "target_version": "string|null",
-  "reproduction_steps": ["string"],
-  "expected_behavior": "string|null",
-  "pristine_markdown": "string"
+  "discussion_title": "Bug: Account deletion fails with 500 error in v1.1.0",
+  "discussion_body": "When clicking Delete Account in settings view, the page throws red error Something went wrong and POST /api/delete-account returns 500.",
+  "video_url": "https://example.com/uploads/screen_recording.mp4"
 }
 ```
 
-To enable it, open the node, add an OpenAI credential, and disable `LLM Gatekeeper (Fallback)`. The fallback Code node produces the same schema deterministically, so the pipeline works either way.
+> **Note**: `video_url` is optional. If omitted or null, the agent automatically falls back to discussion context analysis.
+
+#### Response Body (`application/json`):
+```json
+{
+  "status": "success",
+  "report": "## 🎯 TinyFish Investigation Report: **`BUG REPRODUCED & VERIFIED`** ✅\n\n..."
+}
+```
 
 ---
 
-## 🔒 Security & Guardrails
+## ⚡ Instant Collaborator Onboarding (`invite_turing`)
 
-- **Zero Arbitrary Image Execution**: Only version strings matching `^v\d+\.\d+\.\d+$` are accepted. The provisioner verifies image existence before launching.
-- **No Shell Interpolation**: All Docker operations use `child_process.execFile` with direct arguments array.
-- **Ephemeral Isolation**: Each test container has strict resource limits (256MB memory, 0.5 CPU) and is torn down immediately after testing.
-- **TTL Reaper**: Background interval reaps any containers older than 10 minutes automatically.
-- **Upload Endpoint Guardrails**: `/upload` requires `X-Auth-Token`, accepts only image/video MIME types (plus Jira's `application/octet-stream`), caps uploads at 25 MB, and stores files under random hash names so uploads cannot traverse paths or overwrite each other.
-- **Secrets Stay in Env**: Jira and GitHub credentials are read from environment variables only, never hardcoded. The `pristine_markdown` and GitHub issue body contain user content and migrated media URLs, not tokens.
-- **HMAC SHA-256 Webhook Verification**: GitHub webhooks are verified with constant-time equality check.
+To grant Turing-Agent admin access to any repository without waiting for scheduled polling jobs and **without exposing the bot's Personal Access Token (PAT)** on local developer machines:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Owner as Repository Owner (Terminal)
+    participant GH as GitHub API
+    participant n8n as n8n Webhook Engine
+    participant Bot as Turing-Agent (PAT)
+
+    Owner->>GH: gh api PUT /repos/:repo/collaborators/Turing-agent
+    GH-->>Owner: 201 Created (Invitation Sent)
+    Owner->>n8n: GET /webhook/accept-turing-invite (Instant Ping)
+    n8n->>GH: GET /user/repository_invitations (Authenticated as Turing-agent)
+    GH-->>n8n: [ { "id": 12345, "repo": ":repo" } ]
+    n8n->>GH: PATCH /user/repository_invitations/12345
+    GH-->>n8n: 204 No Content (Invitation Accepted)
+    n8n-->>Owner: {"status": "success", "acceptedCount": 1}
+```
+
+### 1. Configure the n8n Workflow
+Import the prebuilt workflow file [`accept-turing-invite-workflow.json`](file:///c:/Users/yashk/Desktop/TinyFish/AgentX-TinyFish/accept-turing-invite-workflow.json) into your n8n instance:
+- **Webhook Node**: `GET /webhook/accept-turing-invite`
+- **HTTP Request (Fetch Invites)**: `GET https://api.github.com/user/repository_invitations` using `Bearer {{ $env.GITHUB_TOKEN }}`
+- **HTTP Request (Accept Invites)**: `PATCH https://api.github.com/user/repository_invitations/{{ $json.id }}` using `Bearer {{ $env.GITHUB_TOKEN }}`
+- Toggle the workflow to **Active** and copy your Production Webhook URL.
+
+### 2. Configure Your Terminal
+
+#### Bash / Zsh (`~/.bashrc` or `~/.zshrc`):
+Add the following function to your shell profile:
+```bash
+invite_turing() {
+  local repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+  echo "Inviting Turing-agent to $repo as Admin..."
+
+  # 1. Send invite using your main authenticated GitHub account
+  gh api --method PUT \
+    -H "Accept: application/vnd.github+json" \
+    /repos/$repo/collaborators/Turing-agent \
+    -f permission=admin
+
+  echo "Triggering instant auto-accept..."
+
+  # 2. Ping n8n to accept immediately (zero token exposure locally)
+  curl -s "https://your-n8n-instance.com/webhook/accept-turing-invite" > /dev/null
+
+  echo "Turing-agent is now an Admin on $repo!"
+}
+```
+
+#### Windows PowerShell:
+Add to your PowerShell Profile (`$PROFILE`) or run `. .\scripts\invite_turing.ps1`:
+```powershell
+function invite_turing {
+    $repo = gh repo view --json nameWithOwner -q .nameWithOwner
+    Write-Host "Inviting Turing-agent to $repo as Admin..." -ForegroundColor Cyan
+
+    gh api --method PUT `
+        -H "Accept: application/vnd.github+json" `
+        "/repos/$repo/collaborators/Turing-agent" `
+        -f permission=admin | Out-Null
+
+    Write-Host "Triggering instant auto-accept..." -ForegroundColor Yellow
+    Invoke-RestMethod -Uri "https://your-n8n-instance.com/webhook/accept-turing-invite" -Method Get | Out-Null
+
+    Write-Host "Turing-agent is now an Admin on $repo!" -ForegroundColor Green
+}
+```
+
+### 3. Usage
+Inside any local repository directory, simply run:
+```bash
+invite_turing
+```
+Turing-Agent is invited and granted admin permissions within the exact same second!
 
 ---
 
-## 📝 Assumptions & Limitations
-See [`ASSUMPTIONS.md`](file:///Users/omrajput/Desktop/Projects/Auto-Repro/ASSUMPTIONS.md) for detailed notes on scope boundaries, production considerations, and multi-tenant isolation requirements.
+## 🛡️ Resilience & Fault Tolerance
+
+- **Daemon Offline Protection**: If Docker Desktop is not running, the sandbox dynamically switches to an isolated local workspace sandbox, allowing full verification without crashing.
+- **Graceful Video Fallback**: If a video fails to download, times out, or is omitted, Phase 2.1 analyzes the discussion description text directly.
+- **Zero-Crash Webhook Guarantee**: Any unhandled exception during the pipeline is trapped, wrapped into an actionable diagnostic Markdown report, and returned with HTTP 200 so n8n always posts a reply to GitHub.
+- **Guaranteed Cleanup**: Python context managers ensure all spawned Docker containers and temporary filesystem artifacts are destroyed upon request completion.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

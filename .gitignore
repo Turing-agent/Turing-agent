@@ -1,6 +1,0 @@
-node_modules/
-.env
-*.log
-
-# Migrated Jira attachments (temporary public storage)
-provisioner/public/uploads/

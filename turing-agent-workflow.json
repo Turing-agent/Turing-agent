@@ -1,0 +1,138 @@
+{
+  "name": "Turing-Agent v2 (Autonomous Investigation Pipeline)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "turing-agent-intake",
+        "responseMode": "onReceived",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "id": "node-intake-webhook",
+      "name": "GitHub Discussion / Issue Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        180,
+        300
+      ],
+      "webhookId": "turing-agent-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract GitHub issue/discussion payload and auto-detect Live URLs & Video URLs\nconst payload = $input.first().json.body || $input.first().json;\n\n// Handle GitHub Issue or Discussion payloads\nconst discussion = payload.discussion || payload.issue || {};\nconst repository = payload.repository || {};\n\nconst title = discussion.title || payload.title || \"Reported UI/Console Bug\";\nconst body = discussion.body || payload.body || \"\";\nconst issueNumber = discussion.number || payload.number || 0;\nconst repoOwner = repository.owner ? (repository.owner.login || repository.owner.name) : \"\";\nconst repoName = repository.name || \"\";\n\n// Extract video URL if present (mp4, webm, mov, or loom/youtube/github asset link)\nlet videoUrl = \"\";\nconst videoMatch = body.match(/(https?:\\/\\/[^\\s\"'<>]+\\.(?:mp4|webm|mov|mkv))/i) || \n                 body.match(/(https?:\\/\\/user-images\\.githubusercontent\\.com\\/[^\\s\"'<>]+)/i) ||\n                 body.match(/(https?:\\/\\/(?:www\\.)?(?:loom\\.com|youtube\\.com)\\/[^\\s\"'<>]+)/i);\nif (videoMatch) {\n  videoUrl = videoMatch[0];\n}\n\n// Auto-detect Live Deployment URL (Vercel, Netlify, Render, Staging, or any http/https URL in report)\nlet liveUrl = \"\";\nconst urlRegex = /(https?:\\/\\/[a-zA-Z0-9.-]+\\.(?:vercel\\.app|netlify\\.app|pages\\.dev|koyeb\\.app|onrender\\.com|dev|io|org|com)(?:\\/[^\\s\"'<>]*)?)/gi;\nlet match;\nwhile ((match = urlRegex.exec(body)) !== null) {\n  const foundUrl = match[1];\n  if (!foundUrl.includes(\"github.com\") && !foundUrl.includes(\"githubusercontent.com\") && !foundUrl.includes(\"loom.com\")) {\n    liveUrl = foundUrl;\n    break;\n  }\n}\n\nreturn [{\n  json: {\n    title,\n    body,\n    issueNumber,\n    repoOwner,\n    repoName,\n    video_url: videoUrl,\n    live_url: liveUrl\n  }\n}];"
+      },
+      "id": "node-parse-intake",
+      "name": "Parse Bug & Extract URLs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.TURING_AGENT_URL || \"http://127.0.0.1:8000\" }}/run-tinyfish",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"discussion_title\": \"{{ $json.title }}\",\n  \"discussion_body\": \"{{ $json.body.replace(/\\n/g, '\\\\n').replace(/\"/g, '\\\\\"') }}\",\n  \"video_url\": \"{{ $json.video_url || '' }}\",\n  \"live_url\": \"{{ $json.live_url || '' }}\"\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-turing-agent",
+      "name": "Turing-Agent Investigation Engine",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Parse Bug & Extract URLs').first().json.repoOwner }}/{{ $('Parse Bug & Extract URLs').first().json.repoName }}/issues/{{ $('Parse Bug & Extract URLs').first().json.issueNumber }}/comments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.GITHUB_TOKEN }}"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"body\": \"{{ $json.report.replace(/\\n/g, '\\\\n').replace(/\"/g, '\\\\\"') }}\"\n}",
+        "options": {}
+      },
+      "id": "node-post-comment",
+      "name": "Post Verification Report to GitHub",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "GitHub Discussion / Issue Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Bug & Extract URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Bug & Extract URLs": {
+      "main": [
+        [
+          {
+            "node": "Turing-Agent Investigation Engine",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Turing-Agent Investigation Engine": {
+      "main": [
+        [
+          {
+            "node": "Post Verification Report to GitHub",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

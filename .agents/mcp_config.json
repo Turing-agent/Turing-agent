@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "n8n": {
+      "serverUrl": "https://turing.app.n8n.cloud/mcp-server/http"
+    }
+  }
+}
