@@ -406,6 +406,9 @@ class ResolveIssueResult(BaseModel):
     summary: str
 
 
+import re
+import base64
+
 # Extensions to consider as source code (no binaries/lock files)
 _SOURCE_EXTS = re.compile(
     r'\.(js|ts|jsx|tsx|mjs|cjs|py|html|css|scss|less|json|yaml|yml|md|sh|go|rs|java|kt|'
@@ -419,9 +422,6 @@ _EXCLUDE_DIRS = re.compile(
     re.IGNORECASE
 )
 
-import re
-import base64
-
 
 def _github_headers(token: str) -> dict:
     return {
@@ -432,48 +432,57 @@ def _github_headers(token: str) -> dict:
     }
 
 
-def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 40) -> dict[str, str]:
+def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 15) -> dict[str, str]:
     """
-    Fetches the recursive git tree, then downloads content of relevant source files.
+    Fetches the recursive git tree, then downloads content of relevant source files in parallel.
     Returns {path: content} for files likely to be relevant.
     """
     import requests
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     headers = _github_headers(token)
 
     # 1. Get recursive tree
     resp = requests.get(
         f"https://api.github.com/repos/{repo}/git/trees/{tree_sha}?recursive=1",
-        headers=headers, timeout=30
+        headers=headers, timeout=20
     )
     resp.raise_for_status()
     tree = resp.json().get("tree", [])
 
     blobs = [
         f for f in tree
-        if f["type"] == "blob"
-        and _SOURCE_EXTS.search(f["path"])
-        and not _EXCLUDE_DIRS.search("/" + f["path"])
-        and f.get("size", 0) < 80_000  # skip large files
+        if f.get("type") == "blob"
+        and _SOURCE_EXTS.search(f.get("path", ""))
+        and not _EXCLUDE_DIRS.search("/" + f.get("path", ""))
+        and f.get("size", 0) < 60_000  # skip large files
     ]
 
     # Prefer smaller files first; cap at max_files
     blobs.sort(key=lambda f: f.get("size", 0))
     blobs = blobs[:max_files]
 
-    contents: dict[str, str] = {}
-    for blob in blobs:
+    def _fetch_single_blob(blob: dict) -> tuple[str, Optional[str]]:
         try:
             r = requests.get(
                 f"https://api.github.com/repos/{repo}/contents/{blob['path']}",
-                headers=headers, timeout=20
+                headers=headers, timeout=10
             )
             r.raise_for_status()
             data = r.json()
             raw = data.get("content", "")
             if raw:
-                contents[blob["path"]] = base64.b64decode(raw).decode("utf-8", errors="replace")
+                return blob["path"], base64.b64decode(raw).decode("utf-8", errors="replace")
         except Exception as fetch_err:
-            logger.warning(f"[resolve-issue] Could not fetch {blob['path']}: {fetch_err}")
+            logger.warning(f"[resolve-issue] Could not fetch {blob.get('path')}: {fetch_err}")
+        return blob.get("path", ""), None
+
+    contents: dict[str, str] = {}
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        future_to_blob = {executor.submit(_fetch_single_blob, b): b for b in blobs}
+        for future in as_completed(future_to_blob):
+            path, text = future.result()
+            if path and text is not None:
+                contents[path] = text
 
     return contents
 
@@ -549,17 +558,38 @@ def _call_groq_for_fix(
         "Now resolve this issue by returning the required JSON object with complete file changes."
     )
 
-    logger.info(f"[resolve-issue] Calling Groq (llama-3.3-70b-versatile) for issue #{issue_number}...")
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.1,
-        max_tokens=8000,
-        response_format={"type": "json_object"},
-    )
+    models_to_try = [
+        m for m in [
+            os.getenv("GROQ_MODEL"),
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.8-27b",
+            "openai/gpt-oss-20b",
+        ] if m
+    ]
+
+    response = None
+    last_err = None
+    for model_name in models_to_try:
+        try:
+            logger.info(f"[resolve-issue] Calling Groq ({model_name}) for issue #{issue_number}...")
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.1,
+                max_tokens=8000,
+                response_format={"type": "json_object"},
+            )
+            logger.info(f"[resolve-issue] Successfully generated fix with model {model_name}")
+            break
+        except Exception as groq_err:
+            logger.warning(f"[resolve-issue] Groq model {model_name} failed: {groq_err}")
+            last_err = groq_err
+
+    if not response:
+        raise RuntimeError(f"All Groq models failed. Last error: {last_err}")
 
     raw = response.choices[0].message.content.strip()
     logger.info(f"[resolve-issue] Groq responded ({len(raw)} chars)")
@@ -578,7 +608,7 @@ def _call_groq_for_fix(
 
 
 @app.post("/resolve-issue")
-async def resolve_issue(payload: ResolveIssuePayload):
+def resolve_issue(payload: ResolveIssuePayload):
     """
     AI-powered code resolution endpoint.
 
