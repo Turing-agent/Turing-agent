@@ -38,6 +38,11 @@ from analyzer import (
     analyze_root_cause,
     RootCauseAnalysisResult
 )
+from tinyfish_correlator import (
+    generate_turing_validation,
+    scrape_repository_issues_and_discussions,
+    generate_tinyfish_correlation_report
+)
 
 # Configure logging
 logging.basicConfig(
@@ -755,4 +760,73 @@ def resolve_issue(payload: ResolveIssuePayload):
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()},
         )
+
+
+# ---------------------------------------------------------------------------
+# /triage-discussion — Immediate Maintainer Validation + TinyFish Correlation
+# ---------------------------------------------------------------------------
+
+class TriageDiscussionPayload(BaseModel):
+    """Payload sent by n8n when a new GitHub discussion is opened."""
+    discussion_title: str = Field(..., description="GitHub discussion title")
+    discussion_body: str = Field(..., description="GitHub discussion description body")
+    discussion_number: Optional[Any] = Field(None, description="Discussion number")
+    discussion_url: Optional[str] = Field(None, description="GitHub discussion URL")
+    author: Optional[str] = Field("contributor", description="Author username")
+    repository: Optional[str] = Field("YASHK-arch/RepoOwl-extension", description="Full repo name owner/repo")
+
+
+@app.post("/triage-discussion")
+def triage_discussion(payload: TriageDiscussionPayload):
+    """
+    Called immediately upon a new GitHub discussion.
+    1. Generates Turing's maintainer validation comment.
+    2. Uses TinyFish to scrape open & closed issues/discussions across the repository.
+    3. Correlates impacted components, past PRs, commits, and scopes the issue for work.
+    4. Returns both comments so n8n can post them to GitHub.
+    """
+    logger.info(f"[triage-discussion] Triaging #{payload.discussion_number}: {payload.discussion_title} by @{payload.author}")
+
+    try:
+        # Step 1: Immediate Turing validation review
+        validation_comment = generate_turing_validation(
+            discussion_title=payload.discussion_title,
+            discussion_body=payload.discussion_body,
+            author=payload.author or "contributor",
+            repo=payload.repository or "YASHK-arch/RepoOwl-extension"
+        )
+
+        # Step 2: TinyFish issue scraping & component correlation
+        tinyfish_key = os.getenv("TINYFISH_API_KEY", "")
+        scraped_issues = []
+        if tinyfish_key:
+            scraped_issues = scrape_repository_issues_and_discussions(
+                repo=payload.repository or "YASHK-arch/RepoOwl-extension",
+                api_key=tinyfish_key,
+                max_issues_to_inspect=3
+            )
+
+        # Step 3: Produce TinyFish correlation report
+        correlation_report = generate_tinyfish_correlation_report(
+            repo=payload.repository or "YASHK-arch/RepoOwl-extension",
+            discussion_title=payload.discussion_title,
+            discussion_body=payload.discussion_body,
+            scraped_issues=scraped_issues
+        )
+
+        logger.info(f"[triage-discussion] Successfully generated validation & TinyFish correlation ({len(scraped_issues)} issues examined).")
+        return {
+            "status": "success",
+            "validation_comment": validation_comment,
+            "tinyfish_correlation_comment": correlation_report,
+            "scraped_issues_count": len(scraped_issues)
+        }
+
+    except Exception as e:
+        logger.error(f"[triage-discussion] Error during triage: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+        )
+
 
