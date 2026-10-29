@@ -11,7 +11,7 @@
 # ==============================================================================
 
 # Configure your n8n Production Webhook URL (or set via environment variable)
-TURING_N8N_INVITE_WEBHOOK="${TURING_N8N_INVITE_WEBHOOK:-https://your-n8n-instance.com/webhook/accept-turing-invite}"
+TURING_N8N_INVITE_WEBHOOK="${TURING_N8N_INVITE_WEBHOOK:-https://turing.app.n8n.cloud/webhook/accept-turing-invite}"
 
 invite_turing() {
   local webhook_url="${1:-$TURING_N8N_INVITE_WEBHOOK}"
@@ -31,19 +31,29 @@ invite_turing() {
     return 1
   fi
 
-  echo "🐟 [Turing-Agent] Inviting 'Turing-agent' to $repo as Admin..."
+  echo "🐟 [Turing-Agent] Inviting 'Turing-agent' to $repo..."
 
-  # 3. Send the invite using your local authenticated GitHub account
-  if ! gh api --method PUT \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    "/repos/$repo/collaborators/Turing-agent" \
-    -f permission=admin > /dev/null; then
-    echo "❌ Error: Failed to send collaborator invite to Turing-agent for $repo."
-    return 1
+  # 3. Check if already collaborator or send invite
+  if gh api "/repos/$repo/collaborators/Turing-agent" &>/dev/null; then
+    echo "✓ [Turing-Agent] Turing-agent is already a collaborator on $repo."
+  else
+    # First try admin (for Organization repos), then fallback to push/write (for personal user repos)
+    if ! gh api --method PUT \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "/repos/$repo/collaborators/Turing-agent" \
+      -f permission=admin > /dev/null 2>&1; then
+      if ! gh api --method PUT \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "/repos/$repo/collaborators/Turing-agent" \
+        -f permission=push > /dev/null; then
+        echo "❌ Error: Failed to send collaborator invite to Turing-agent for $repo."
+        return 1
+      fi
+    fi
+    echo "⚡ [Turing-Agent] Collaborator invitation dispatched. Triggering instant auto-accept..."
   fi
-
-  echo "⚡ [Turing-Agent] Collaborator invitation dispatched. Triggering instant auto-accept..."
 
   # 4. Ping your n8n webhook to force instant acceptance
   if [ "$webhook_url" != "https://your-n8n-instance.com/webhook/accept-turing-invite" ]; then

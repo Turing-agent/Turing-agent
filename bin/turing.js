@@ -91,13 +91,28 @@ Examples:
   }
 
   // Step 2: Invite Turing-agent
-  console.log("2/4 🤝 Inviting 'Turing-agent' as Admin collaborator...");
+  console.log("2/4 🤝 Inviting 'Turing-agent' as collaborator...");
   try {
-    execSync(
-      `gh api --method PUT -H "Accept: application/vnd.github+json" /repos/${repo}/collaborators/Turing-agent -f permission=admin`,
-      { stdio: "pipe" }
-    );
-    console.log("    ✓ Invitation dispatched to Turing-agent.");
+    // Check if already a collaborator
+    const isCollab = run(`gh api /repos/${repo}/collaborators/Turing-agent`, true);
+    if (isCollab !== null) {
+      console.log("    ✓ Turing-agent is already a collaborator on this repository.");
+    } else {
+      // First try permission=admin (supported on Organization repos)
+      // Fallback to permission=push (write permission, required on personal user repos)
+      try {
+        execSync(
+          `gh api --method PUT -H "Accept: application/vnd.github+json" /repos/${repo}/collaborators/Turing-agent -f permission=admin`,
+          { stdio: "pipe" }
+        );
+      } catch {
+        execSync(
+          `gh api --method PUT -H "Accept: application/vnd.github+json" /repos/${repo}/collaborators/Turing-agent -f permission=push`,
+          { stdio: "pipe" }
+        );
+      }
+      console.log("    ✓ Collaborator invitation dispatched to Turing-agent.");
+    }
   } catch (err) {
     console.error(`❌ Error sending collaborator invite: ${err.message}`);
     process.exit(1);

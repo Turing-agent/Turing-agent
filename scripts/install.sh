@@ -52,17 +52,28 @@ echo -e "\n🚀 Initializing Turing-Agent on '$REPO'..."
 echo "1/4 💬 Ensuring GitHub Discussions are enabled..."
 gh repo edit "$REPO" --enable-discussions 2>/dev/null || echo "    ℹ Discussions status unchanged or already enabled."
 
-# 4. Invite Turing-agent as Admin
-echo "2/4 🤝 Inviting 'Turing-agent' as Admin collaborator..."
-if ! gh api --method PUT \
-  -H "Accept: application/vnd.github+json" \
-  -H "X-GitHub-Api-Version: 2022-11-28" \
-  "/repos/$REPO/collaborators/Turing-agent" \
-  -f permission=admin > /dev/null; then
-  echo "❌ Error: Failed to send collaborator invite to Turing-agent for $REPO."
-  exit 1
+# 4. Invite Turing-agent
+echo "2/4 🤝 Inviting 'Turing-agent' as collaborator..."
+if gh api "/repos/$REPO/collaborators/Turing-agent" &>/dev/null; then
+  echo "    ✓ Turing-agent is already a collaborator on $REPO."
+else
+  # First try admin (for Organization repos), then fallback to push/write (for personal user repos)
+  if ! gh api --method PUT \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    "/repos/$REPO/collaborators/Turing-agent" \
+    -f permission=admin > /dev/null 2>&1; then
+    if ! gh api --method PUT \
+      -H "Accept: application/vnd.github+json" \
+      -H "X-GitHub-Api-Version: 2022-11-28" \
+      "/repos/$REPO/collaborators/Turing-agent" \
+      -f permission=push > /dev/null; then
+      echo "❌ Error: Failed to send collaborator invite to Turing-agent for $REPO."
+      exit 1
+    fi
+  fi
+  echo "    ✓ Collaborator invitation dispatched to Turing-agent."
 fi
-echo "    ✓ Collaborator invitation dispatched to Turing-agent."
 
 # 5. Trigger Instant Auto-Accept Webhook
 echo "3/4 ⚡ Triggering cloud auto-accept webhook..."

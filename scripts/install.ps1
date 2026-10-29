@@ -70,19 +70,33 @@ try {
     Write-Host "    ℹ Discussions status unchanged or already enabled." -ForegroundColor Gray
 }
 
-# 4. Invite Turing-agent as Admin
-Write-Host "2/4 🤝 Inviting 'Turing-agent' as Admin collaborator..." -ForegroundColor Yellow
-$inviteOut = gh api --method PUT `
-    -H "Accept: application/vnd.github+json" `
-    -H "X-GitHub-Api-Version: 2022-11-28" `
-    "/repos/$Repo/collaborators/Turing-agent" `
-    -f permission=admin 2>&1
+# 4. Invite Turing-agent
+Write-Host "2/4 🤝 Inviting 'Turing-agent' as collaborator..." -ForegroundColor Yellow
+$isCollab = gh api "/repos/$Repo/collaborators/Turing-agent" 2>$null
+if ($LASTEXITCODE -eq 0 -and $isCollab) {
+    Write-Host "    ✓ Turing-agent is already a collaborator on $Repo." -ForegroundColor Green
+} else {
+    # First try admin (for Organization repos), then fallback to push/write (for personal user repos)
+    $inviteOut = gh api --method PUT `
+        -H "Accept: application/vnd.github+json" `
+        -H "X-GitHub-Api-Version: 2022-11-28" `
+        "/repos/$Repo/collaborators/Turing-agent" `
+        -f permission=admin 2>&1
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Error sending collaborator invitation: $inviteOut" -ForegroundColor Red
-    return
+    if ($LASTEXITCODE -ne 0) {
+        $inviteOut = gh api --method PUT `
+            -H "Accept: application/vnd.github+json" `
+            -H "X-GitHub-Api-Version: 2022-11-28" `
+            "/repos/$Repo/collaborators/Turing-agent" `
+            -f permission=push 2>&1
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Error sending collaborator invitation: $inviteOut" -ForegroundColor Red
+        return
+    }
+    Write-Host "    ✓ Collaborator invitation dispatched to Turing-agent." -ForegroundColor Green
 }
-Write-Host "    ✓ Collaborator invitation dispatched to Turing-agent." -ForegroundColor Green
 
 # 5. Trigger Instant Auto-Accept Webhook
 Write-Host "3/4 ⚡ Triggering cloud auto-accept webhook..." -ForegroundColor Yellow
