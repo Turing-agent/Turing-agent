@@ -1,14 +1,20 @@
-<img src="assets/Turing.jpg" align="right" width="180" alt="Turing-Agent" />
-
 # Turing-Agent 🐟
 
-**GitHub issue triage, QA investigation, and AI-assisted code-fix backend**
-
-Turing-Agent is a Python/FastAPI service intended to work with GitHub and [n8n](https://n8n.io/) to process bug reports, propose reproduction steps, correlate related issues, and suggest code changes. The repository includes a TinyFish-powered investigation path, Groq-powered discussion triage and fix generation, and an invitation-acceptance workflow for the `Turing-agent` GitHub account.
+<table>
+  <tr>
+    <td width="75%" valign="top">
+      <p><strong>GitHub issue triage, QA investigation, and AI-assisted code-fix backend</strong></p>
+      <p>
+        Turing-Agent is a Python/FastAPI service intended to work with GitHub and <a href="https://n8n.io/">n8n</a> to process bug reports, propose reproduction steps, correlate related issues, and suggest code changes. The repository includes a TinyFish-powered investigation path, Groq-powered discussion triage and fix generation, and an invitation-acceptance workflow for the <code>Turing-agent</code> GitHub account.
+      </p>
+    </td>
+    <td width="25%" align="center" valign="middle">
+      <img src="assets/Turing.jpg" alt="Turing-Agent" width="160" style="max-width: 100%; border-radius: 8px;" />
+    </td>
+  </tr>
+</table>
 
 > **Implementation status:** This repository includes both live API integrations and simulated/fallback behavior. A generated investigation report or patch is **not automatically proof that a bug was reproduced, a fix was tested, or a pull request was opened**. See [Current limitations](#current-limitations) before using this system for production automation.
-
-<br clear="right" />
 
 ## Contents
 
