@@ -72,34 +72,57 @@ Note your public forwarding URL (e.g., `https://your-domain.ngrok-free.dev`).
 
 ---
 
-## ⚡ 2. Initializing Turing on Any Repository
+## ⚡ 2. Universal 1-Command Installation on Any Repository
 
-To connect Turing to an open-source repository (e.g. `OWNER/REPO`), you need to:
-1. **Enable Discussions** (if disabled).
-2. **Invite `Turing-agent` as a Collaborator** with Admin permissions and auto-accept.
-3. **Register the Webhook** to forward discussion events to the n8n pipeline.
+Any open-source maintainer can install and fully initialize **Turing-Agent** on their repository using a single terminal command—**without needing to clone this codebase or download local scripts**.
 
-### Method A: The 1-Command Script (Inside Local Repo Directory)
+The installer automatically:
+1. Verifies your authenticated GitHub CLI (`gh`).
+2. Detects your repository from your local git context (or accepts `owner/repo`).
+3. Enables GitHub Discussions on the repository (if not already enabled).
+4. Dispatches the collaborator invitation to `Turing-agent` as Admin.
+5. Pings the cloud webhook to instantly accept the invitation.
+6. Registers the repository webhook to stream discussion events to Turing.
 
-If you already have the repository cloned locally and are inside its directory:
+---
 
-#### Windows PowerShell:
+### Option 1: Universal 1-Liner (`curl` / `irm` — No Node.js required)
+
+Run this directly in your terminal inside your repository directory:
+
+#### 🪟 Windows PowerShell:
 ```powershell
-. .\scripts\invite_turing.ps1
-invite_turing
+irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1 | iex
 ```
 
-#### Bash / Linux / macOS:
+#### 🐧 Linux / 🍎 macOS (Bash / Zsh):
 ```bash
-source ./scripts/invite_turing.sh
-invite_turing
+curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash
+```
+
+> 💡 **Targeting a remote repo from anywhere?** You can pass the repository parameter:
+> - **PowerShell**: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1))) -Repo "owner/repo"`
+> - **Bash**: `curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash -s -- owner/repo`
+
+---
+
+### Option 2: Zero-Install NPX Command (Cross-Platform)
+
+If you have Node.js / npm installed, run the universal interactive CLI:
+
+```bash
+# Inside your repository folder (auto-detects repo):
+npx github:YASHK-arch/Turing-agent
+
+# Or specifying the target repository explicitly:
+npx github:YASHK-arch/Turing-agent owner/repo
 ```
 
 ---
 
-### Method B: Complete 3-Step CLI Setup (From Any Terminal)
+### Option 3: Manual 3-Step Setup via GitHub CLI (`gh`)
 
-You can initialize any repository remotely using the GitHub CLI (`gh`):
+If you prefer to run each step manually:
 
 #### Step 1: Enable GitHub Discussions
 ```bash
@@ -123,7 +146,6 @@ curl -s -X POST "https://turing.app.n8n.cloud/webhook/accept-turing-invite"
 ```
 
 #### Step 3: Register the GitHub Webhook
-This tells GitHub to forward discussion and comment events to Turing's n8n pipeline:
 ```bash
 gh api --method POST \
   -H "Accept: application/vnd.github+json" \
@@ -135,6 +157,8 @@ gh api --method POST \
   -F "config[url]=https://turing.app.n8n.cloud/webhook/github-events" \
   -F "config[content_type]=json"
 ```
+
+---
 
 Turing is now fully initialized on the target repository! 🎉
 

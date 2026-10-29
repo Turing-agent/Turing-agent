@@ -1,0 +1,24 @@
+{
+  "name": "turing-agent",
+  "version": "1.0.0",
+  "description": "Turing-Agent: Autonomous GitHub QA Maintainer & Bug Investigator powered by TinyFish",
+  "main": "bin/turing.js",
+  "bin": {
+    "turing-agent": "./bin/turing.js",
+    "turing": "./bin/turing.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YASHK-arch/Turing-agent.git"
+  },
+  "keywords": [
+    "turing-agent",
+    "tinyfish",
+    "github-agent",
+    "autonomous-qa",
+    "code-repair",
+    "triage"
+  ],
+  "author": "YASHK-arch",
+  "license": "MIT"
+}
