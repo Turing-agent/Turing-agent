@@ -18,7 +18,7 @@ function Invite-Turing {
     )
 
     if (-not $WebhookUrl) {
-        $WebhookUrl = "https://your-n8n-instance.com/webhook/accept-turing-invite"
+        $WebhookUrl = "https://turing.app.n8n.cloud/webhook/accept-turing-invite"
     }
 
     # 1. Check gh CLI
@@ -34,21 +34,34 @@ function Invite-Turing {
         return
     }
 
-    Write-Host "🐟 [Turing-Agent] Inviting 'Turing-agent' to $repo as Admin..." -ForegroundColor Cyan
+    Write-Host "🐟 [Turing-Agent] Inviting 'Turing-agent' to $repo..." -ForegroundColor Cyan
 
-    # 3. Send collaborator invitation
-    gh api --method PUT `
-        -H "Accept: application/vnd.github+json" `
-        -H "X-GitHub-Api-Version: 2022-11-28" `
-        "/repos/$repo/collaborators/Turing-agent" `
-        -f permission=admin | Out-Null
+    # 3. Check if already collaborator or send invitation
+    $isCollab = gh api "/repos/$repo/collaborators/Turing-agent" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $isCollab) {
+        Write-Host "✓ [Turing-Agent] Turing-agent is already a collaborator on $repo." -ForegroundColor Green
+    } else {
+        # First try admin (for Organization repos), then fallback to push/write (for personal user repos)
+        gh api --method PUT `
+            -H "Accept: application/vnd.github+json" `
+            -H "X-GitHub-Api-Version: 2022-11-28" `
+            "/repos/$repo/collaborators/Turing-agent" `
+            -f permission=admin 2>$null | Out-Null
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to send collaborator invite to Turing-agent for $repo."
-        return
-    }
+        if ($LASTEXITCODE -ne 0) {
+            gh api --method PUT `
+                -H "Accept: application/vnd.github+json" `
+                -H "X-GitHub-Api-Version: 2022-11-28" `
+                "/repos/$repo/collaborators/Turing-agent" `
+                -f permission=push | Out-Null
+        }
 
-    Write-Host "⚡ [Turing-Agent] Invitation dispatched. Triggering instant auto-accept..." -ForegroundColor Yellow
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to send collaborator invite to Turing-agent for $repo."
+            return
+        }
+
+        Write-Host "⚡ [Turing-Agent] Invitation dispatched. Triggering instant auto-accept..." -ForegroundColor Yellow
 
     # 4. Trigger n8n webhook
     if ($WebhookUrl -ne "https://your-n8n-instance.com/webhook/accept-turing-invite") {
