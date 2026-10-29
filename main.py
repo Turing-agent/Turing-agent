@@ -399,7 +399,12 @@ class ResolveIssuePayload(BaseModel):
     issue_number: int = Field(..., description="GitHub issue number")
     repo_full_name: str = Field(..., description="owner/repo, e.g. YASHK-arch/RepoOwl-extension")
     base_tree_sha: str = Field(..., description="SHA of the base git tree to build changes on")
+    base_commit_sha: Optional[str] = Field(None, description="SHA of the base commit to parent the new commit")
+    author: Optional[str] = Field("contributor", description="Author username for co-attribution")
+    branch_name: Optional[str] = Field(None, description="Feature branch name (defaults to issue-{number})")
     discussion_url: Optional[str] = Field(None, description="Link back to the original discussion")
+    issue_url: Optional[str] = Field(None, description="Link to the created issue")
+    progress_comment_id: Optional[str] = Field(None, description="GraphQL node ID of progress comment in discussion")
     live_url: Optional[str] = Field(None, description="Optional live website or deployment URL to inspect with TinyFish")
 
 
@@ -416,6 +421,207 @@ class ResolveIssueResult(BaseModel):
 
 import re
 import base64
+
+
+def _update_discussion_progress(token: str, comment_id: Optional[str], body: str):
+    """Updates a GitHub Discussion comment in-place using GraphQL mutation."""
+    if not comment_id or not token:
+        return
+    query = """
+    mutation($input: UpdateDiscussionCommentInput!) {
+      updateDiscussionComment(input: $input) {
+        comment { id updatedAt }
+      }
+    }
+    """
+    try:
+        requests.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"input": {"commentId": comment_id, "body": body}}},
+            headers={"Authorization": f"Bearer {token}", "User-Agent": "Turing-agent"},
+            timeout=10,
+        )
+    except Exception as e:
+        logger.warning(f"[Progress] Failed to update discussion comment {comment_id}: {e}")
+
+
+def _build_progress_markdown(
+    issue_number: int,
+    issue_url: str,
+    author: str,
+    stage: str,  # "intake" | "analyzing" | "coding" | "committed" | "pr_created" | "error"
+    file_count: int = 0,
+    changed_paths: Optional[list[str]] = None,
+    commit_sha: Optional[str] = None,
+    pr_number: Optional[int] = None,
+    pr_url: Optional[str] = None,
+    summary: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> str:
+    """Builds a live checklist markdown showing real-time autonomous progress."""
+    changed_paths = changed_paths or []
+    branch = f"issue-{issue_number}"
+
+    chk_maintainer = f"[x] Maintainer approval verified (@{author})"
+    chk_issue = f"[x] Created & linked Issue [#{issue_number}]({issue_url})"
+
+    if stage == "intake":
+        chk_files = "[⏳] Inspecting codebase files & ephemeral environment..."
+        chk_solve = "[ ] Synthesizing solution & patch with Groq AI"
+        chk_commit = f"[ ] Committing changes to branch `{branch}`"
+        chk_pr = "[ ] Opening Pull Request"
+        header = "### ⚡ Turing-agent Fix in Progress..."
+    elif stage == "analyzing":
+        chk_files = f"[x] Codebase files inspected ({file_count} files analyzed)"
+        chk_solve = "[⏳] Synthesizing solution & patch with Groq AI..."
+        chk_commit = f"[ ] Committing changes to branch `{branch}`"
+        chk_pr = "[ ] Opening Pull Request"
+        header = "### ⚡ Turing-agent Fix in Progress..."
+    elif stage == "coding":
+        chk_files = f"[x] Codebase files inspected ({file_count} files analyzed)"
+        chk_solve = f"[x] Solution synthesized by Groq AI ({len(changed_paths)} file(s) modified)"
+        chk_commit = f"[⏳] Building Git tree and committing to `{branch}`..."
+        chk_pr = "[ ] Opening Pull Request"
+        header = "### ⚡ Turing-agent Fix in Progress..."
+    elif stage == "committed":
+        sha_short = commit_sha[:7] if commit_sha else ""
+        chk_files = f"[x] Codebase files inspected ({file_count} files analyzed)"
+        chk_solve = f"[x] Solution synthesized by Groq AI ({len(changed_paths)} file(s) modified)"
+        chk_commit = f"[x] Changes committed & pushed to branch `{branch}` (`{sha_short}`)"
+        chk_pr = "[⏳] Opening Pull Request..."
+        header = "### ⚡ Turing-agent Fix in Progress..."
+    elif stage == "pr_created":
+        sha_short = commit_sha[:7] if commit_sha else ""
+        chk_files = f"[x] Codebase files inspected ({file_count} files analyzed)"
+        chk_solve = f"[x] Solution synthesized by Groq AI ({len(changed_paths)} file(s) modified)"
+        chk_commit = f"[x] Changes committed & pushed to branch `{branch}` (`{sha_short}`)"
+        chk_pr = f"[x] **Pull Request Opened**: [#{pr_number}]({pr_url}) 🎉"
+        header = "### ✅ Turing-agent Fix Completed!"
+    elif stage == "error":
+        chk_files = f"[x] Codebase files inspected ({file_count} files analyzed)" if file_count else "[ ] Codebase files inspected"
+        chk_solve = "[❌] Error during solution generation"
+        chk_commit = f"[ ] Committing changes to branch `{branch}`"
+        chk_pr = "[ ] Opening Pull Request"
+        header = "### ⚠️ Turing-agent Fix Encountered an Error"
+    else:
+        header = "### ⚡ Turing-agent Fix in Progress..."
+
+    lines = [
+        "<!-- turing-bot-progress -->",
+        header,
+        f"- {chk_maintainer}",
+        f"- {chk_issue}",
+        f"- {chk_files}",
+        f"- {chk_solve}",
+        f"- {chk_commit}",
+        f"- {chk_pr}",
+    ]
+
+    if changed_paths:
+        lines.append("\n**Modified Files:**")
+        for p in changed_paths:
+            lines.append(f"- `{p}`")
+
+    if summary and stage in ("committed", "pr_created"):
+        lines.append(f"\n> **Summary**: {summary}")
+
+    if error_message and stage == "error":
+        lines.append(f"\n> **Error**: `{error_message}`")
+
+    if stage == "pr_created":
+        lines.append(f"\n_Co-authored with @{author}._")
+
+    return "\n".join(lines)
+
+
+def _commit_and_push_changes(
+    repo: str,
+    base_tree_sha: str,
+    base_commit_sha: Optional[str],
+    branch_name: str,
+    changes: list[FileChange],
+    commit_message: str,
+    author: str,
+    token: str,
+) -> tuple[str, str]:
+    """
+    Applies changes to GitHub repository via Git Data API:
+    1. Creates blobs for modified files
+    2. Builds new git tree on top of base_tree_sha
+    3. Creates commit referencing base_commit_sha with co-author attribution
+    4. Creates or updates branch refs/heads/{branch_name}
+    Returns (commit_sha, tree_sha).
+    """
+    headers = _github_headers(token)
+
+    tree_entries = []
+    for change in changes:
+        blob_resp = requests.post(
+            f"https://api.github.com/repos/{repo}/git/blobs",
+            headers=headers,
+            json={"content": change.content, "encoding": "utf-8"},
+            timeout=20,
+        )
+        blob_resp.raise_for_status()
+        blob_sha = blob_resp.json()["sha"]
+        tree_entries.append({
+            "path": change.path,
+            "mode": "100644",
+            "type": "blob",
+            "sha": blob_sha,
+        })
+
+    if tree_entries:
+        tree_resp = requests.post(
+            f"https://api.github.com/repos/{repo}/git/trees",
+            headers=headers,
+            json={"base_tree": base_tree_sha, "tree": tree_entries},
+            timeout=20,
+        )
+        tree_resp.raise_for_status()
+        new_tree_sha = tree_resp.json()["sha"]
+    else:
+        new_tree_sha = base_tree_sha
+
+    co_author = f"\n\nCo-authored-by: {author} <{author}@users.noreply.github.com>"
+    full_msg = commit_message.strip() + co_author
+
+    commit_payload = {
+        "message": full_msg,
+        "tree": new_tree_sha,
+    }
+    if base_commit_sha:
+        commit_payload["parents"] = [base_commit_sha]
+
+    commit_resp = requests.post(
+        f"https://api.github.com/repos/{repo}/git/commits",
+        headers=headers,
+        json=commit_payload,
+        timeout=20,
+    )
+    commit_resp.raise_for_status()
+    commit_sha = commit_resp.json()["sha"]
+
+    # Create or update branch refs/heads/{branch_name}
+    ref_resp = requests.post(
+        f"https://api.github.com/repos/{repo}/git/refs",
+        headers=headers,
+        json={"ref": f"refs/heads/{branch_name}", "sha": commit_sha},
+        timeout=20,
+    )
+    if ref_resp.status_code == 422:
+        # Branch already exists -> update it with force=True
+        patch_resp = requests.patch(
+            f"https://api.github.com/repos/{repo}/git/refs/heads/{branch_name}",
+            headers=headers,
+            json={"sha": commit_sha, "force": True},
+            timeout=20,
+        )
+        patch_resp.raise_for_status()
+    else:
+        ref_resp.raise_for_status()
+
+    return commit_sha, new_tree_sha
 
 # Extensions to consider as source code (no binaries/lock files)
 _SOURCE_EXTS = re.compile(
@@ -440,10 +646,69 @@ def _github_headers(token: str) -> dict:
     }
 
 
-def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 15) -> dict[str, str]:
+def _score_file_relevance(path: str, issue_title: str, issue_body: str) -> int:
     """
-    Fetches the recursive git tree, then downloads content of relevant source files in parallel.
-    Returns {path: content} for files likely to be relevant.
+    Ranks files based on relevance to the issue using:
+    - Component and filename matching (e.g., NavBar, Header, App)
+    - Tokens, anchors, and identifiers mentioned in the issue
+    - Directory context (web/landing vs extension)
+    """
+    text = f"{issue_title} {issue_body}".lower()
+    path_low = path.lower()
+    filename = os.path.basename(path).lower()
+    name_no_ext = os.path.splitext(filename)[0]
+
+    score = 0
+
+    # 1. Exact or partial component/filename match (e.g. "NavBar" or "navbar")
+    if name_no_ext and len(name_no_ext) > 2:
+        if name_no_ext in text or name_no_ext.replace('-', '') in text or name_no_ext.replace('_', '') in text:
+            score += 100
+
+    # 2. Extract issue tokens (words, #anchors, identifiers)
+    tokens = set(re.findall(r'[a-zA-Z0-9_#]{3,}', text))
+    stop_words = {'the', 'and', 'for', 'this', 'that', 'with', 'from', 'repo', 'github', 'issue', 'button', 'must', 'should', 'here', 'there'}
+    for tok in tokens:
+        if tok in stop_words:
+            continue
+        clean_tok = tok.lstrip('#')
+        if clean_tok in filename:
+            score += 40
+        elif clean_tok in path_low:
+            score += 20
+
+    # 3. Context clues from problem domain
+    if any(k in text for k in ['landing', 'web', 'site', 'frontend', 'page']):
+        if any(dir_k in path_low for dir_k in ['web', 'react', 'site', 'src/components', 'pages']):
+            score += 30
+    if any(k in text for k in ['extension', 'popup', 'background', 'content script']):
+        if 'extension' in path_low or 'popup' in path_low:
+            score += 30
+    if any(k in text for k in ['nav', 'navbar', 'header', 'menu']):
+        if 'nav' in path_low or 'header' in path_low:
+            score += 60
+    if any(k in text for k in ['doc', 'docs', 'documentation']):
+        if 'doc' in path_low:
+            score += 25
+
+    # Prioritize active source files over configs
+    if path_low.endswith(('.jsx', '.tsx', '.js', '.ts', '.vue', '.html', '.css')):
+        score += 10
+
+    return score
+
+
+def _fetch_repo_files(
+    repo: str,
+    tree_sha: str,
+    token: str,
+    issue_title: str = "",
+    issue_body: str = "",
+    max_files: int = 15,
+) -> dict[str, str]:
+    """
+    Fetches the recursive git tree, scores files based on relevance to the issue,
+    and downloads full content of the top relevant source files in parallel.
     """
     import requests
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -462,12 +727,17 @@ def _fetch_repo_files(repo: str, tree_sha: str, token: str, max_files: int = 15)
         if f.get("type") == "blob"
         and _SOURCE_EXTS.search(f.get("path", ""))
         and not _EXCLUDE_DIRS.search("/" + f.get("path", ""))
-        and f.get("size", 0) < 60_000  # skip large files
+        and f.get("size", 0) < 120_000  # skip excessively large assets
     ]
 
-    # Prefer smaller files first; cap at max_files
-    blobs.sort(key=lambda f: f.get("size", 0))
+    # Rank files by relevance to the issue
+    blobs.sort(
+        key=lambda f: _score_file_relevance(f.get("path", ""), issue_title, issue_body),
+        reverse=True
+    )
+    # Pick top relevant files
     blobs = blobs[:max_files]
+    logger.info(f"[fetch-files] Top relevant candidate files: {[b['path'] for b in blobs[:5]]}")
 
     def _fetch_single_blob(blob: dict) -> tuple[str, Optional[str]]:
         try:
@@ -576,12 +846,12 @@ def _call_groq_for_fix(
 
     client = Groq(api_key=api_key)
 
-    # Build file context (truncate very long files to fit context window)
+    # Build file context with full content (up to 35k chars per file, total 90k chars)
     file_context_parts = []
     total_chars = 0
-    char_budget = 60_000  # ~20k tokens for file content
+    char_budget = 90_000  # Groq 128k context window easily accommodates full files
     for path, content in file_contents.items():
-        snippet = content[:3000] if len(content) > 3000 else content
+        snippet = content if len(content) <= 35_000 else content[:35_000] + "\n// ... [remaining content truncated for length]"
         part = f"### File: `{path}`\n```\n{snippet}\n```"
         if total_chars + len(part) > char_budget:
             break
@@ -591,24 +861,23 @@ def _call_groq_for_fix(
     file_context = "\n\n".join(file_context_parts) if file_context_parts else "No relevant source files found."
 
     system_prompt = (
-        "You are an expert software engineer and autonomous code repair agent.\n"
-        "Given a GitHub issue description and the repository's source files, you will:\n"
-        "1. Identify exactly which file(s) need to be modified to resolve the issue.\n"
-        "2. Write the complete, corrected file content for each changed file.\n"
-        "3. Return ONLY a valid JSON object — no prose, no markdown fences — with this exact schema:\n\n"
+        "You are an expert senior software engineer and autonomous code repair agent.\n"
+        "Given a GitHub issue description and the repository's source files, your goal is to make the EXACT, SURGICAL fix.\n\n"
+        "CRITICAL RULES:\n"
+        "1. SURGICAL REPAIR: If the bug is a broken link, wrong URL, bad property, missing attribute, or typo, make ONLY that specific change.\n"
+        "2. STRICT PRESERVATION: You MUST preserve ALL existing imports, components, functions, styles, comments, and unrelated logic.\n"
+        "   NEVER remove existing components, delete imports, or replace a full file with a skeleton or placeholder.\n"
+        "3. TARGET THE CORRECT COMPONENT: Fix the bug in the specific child component where the element lives (e.g. `NavBar.jsx` for navbar buttons, `HeroSection.jsx` for hero content).\n"
+        "   Do NOT modify container files (like `App.jsx`) unless the container file itself directly contains the buggy code.\n"
+        "4. COMPLETE FILE CONTENT: Return the COMPLETE file content for each modified file with the surgical fix applied, with all original code intact.\n"
+        "5. Return ONLY a valid JSON object matching the schema:\n"
         "{\n"
         '  "changes": [\n'
-        '    { "path": "relative/path/to/file.ext", "content": "...full file content..." }\n'
+        '    { "path": "relative/path/to/file.ext", "content": "...complete file content with fix applied..." }\n'
         "  ],\n"
-        '  "commit_message": "fix: short description of what was changed",\n'
+        '  "commit_message": "fix: precise description of the change",\n'
         '  "summary": "1-2 sentence explanation of the fix"\n'
-        "}\n\n"
-        "Rules:\n"
-        "- Always include the COMPLETE file content (not diffs, not partial snippets).\n"
-        "- Only include files that actually need to change.\n"
-        "- Commit message must follow conventional commits (fix:, feat:, chore:).\n"
-        "- If the fix is unclear from the code, make the best educated change based on the issue description.\n"
-        "- Return ONLY the JSON object, nothing else."
+        "}\n"
     )
 
     user_prompt = (
@@ -621,7 +890,7 @@ def _call_groq_for_fix(
         "### Repository Source Files:\n\n"
         f"{file_context}\n\n"
         "---\n\n"
-        "Now resolve this issue by returning the required JSON object with complete file changes."
+        "Now resolve this issue with surgical precision, preserving all other existing code intact."
     )
 
     models_to_try = [
@@ -676,34 +945,62 @@ def _call_groq_for_fix(
 @app.post("/resolve-issue")
 def resolve_issue(payload: ResolveIssuePayload):
     """
-    AI-powered code resolution endpoint.
+    AI-powered code resolution and branch commit endpoint.
 
     Called by n8n after a maintainer approves an issue.
-    Fetches relevant repo files, asks Groq to generate a fix,
-    and returns structured file changes + commit message.
-
-    n8n then:
-      1. Creates GitHub blobs for each changed file
-      2. Creates a new Git tree on top of base_tree_sha
-      3. Commits that tree to a feature branch
-      4. Opens a PR
-
-    Required env var: GROQ_API_KEY (free at https://console.groq.com/)
-    Optional env var: GITHUB_TOKEN (needed for GitHub API calls)
+    1. Updates discussion progress: Intake & inspection
+    2. Fetches relevant repo files + runs TinyFish inspection if live URL exists
+    3. Updates discussion progress: Analyzing & LLM synthesizing
+    4. Calls Groq LLM to synthesize code modifications
+    5. Directly builds Git tree, commits with co-author attribution, and pushes branch
+    6. Updates discussion progress: Committed & ready for PR
+    7. Returns complete commit details for n8n to open the Pull Request
     """
     logger.info(f"[resolve-issue] Request: issue #{payload.issue_number} — {payload.issue_title}")
 
     github_token = os.getenv("GITHUB_TOKEN")
+    branch_name = payload.branch_name or f"issue-{payload.issue_number}"
+    author = payload.author or "contributor"
+    issue_url = payload.issue_url or f"https://github.com/{payload.repo_full_name}/issues/{payload.issue_number}"
 
+    # Progress Step 1: Intake
+    _update_discussion_progress(
+        token=github_token,
+        comment_id=payload.progress_comment_id,
+        body=_build_progress_markdown(
+            issue_number=payload.issue_number,
+            issue_url=issue_url,
+            author=author,
+            stage="intake",
+        )
+    )
+
+    file_contents = {}
     try:
-        # Step 1: Fetch repo source files
-        logger.info(f"[resolve-issue] Fetching files from {payload.repo_full_name} @ tree {payload.base_tree_sha[:8]}...")
+        # Step 1: Fetch repo source files with relevance scoring
+        logger.info(f"[resolve-issue] Fetching relevant files for '{payload.issue_title}' from {payload.repo_full_name}...")
         file_contents = _fetch_repo_files(
             repo=payload.repo_full_name,
             tree_sha=payload.base_tree_sha,
             token=github_token,
+            issue_title=payload.issue_title,
+            issue_body=payload.issue_body,
+            max_files=15,
         )
         logger.info(f"[resolve-issue] Fetched {len(file_contents)} source files.")
+
+        # Progress Step 2: Analyzing
+        _update_discussion_progress(
+            token=github_token,
+            comment_id=payload.progress_comment_id,
+            body=_build_progress_markdown(
+                issue_number=payload.issue_number,
+                issue_url=issue_url,
+                author=author,
+                stage="analyzing",
+                file_count=len(file_contents),
+            )
+        )
 
         # Step 2: TinyFish Web Agent Live Site Inspection (if live URL found)
         tinyfish_key = os.getenv("TINYFISH_API_KEY")
@@ -722,7 +1019,7 @@ def resolve_issue(payload: ResolveIssuePayload):
                 api_key=tinyfish_key,
             )
 
-        # Step 3: Call Groq LLM for code fix with repo context + TinyFish observation
+        # Step 3: Call Groq LLM for surgical code fix
         result = _call_groq_for_fix(
             issue_title=payload.issue_title,
             issue_body=payload.issue_body,
@@ -733,29 +1030,104 @@ def resolve_issue(payload: ResolveIssuePayload):
             tinyfish_observation=tf_summary,
         )
 
+        # Step 3.1: Guardrail against accidental excessive code deletion
+        sanitized_changes = []
+        for change in result.changes:
+            orig = file_contents.get(change.path)
+            if orig:
+                orig_lines = orig.splitlines()
+                new_lines = change.content.splitlines()
+                # If the file lost >40% of its lines and original had >25 lines, reject hallucinated truncation
+                if len(orig_lines) > 25 and len(new_lines) < len(orig_lines) * 0.6:
+                    logger.warning(
+                        f"[Safety Guardrail] Detected excessive code deletion in {change.path}: "
+                        f"{len(orig_lines)} original lines reduced to {len(new_lines)} lines! "
+                        "Rejecting hallucinated truncation to protect existing codebase."
+                    )
+                    continue
+            sanitized_changes.append(change)
+        result.changes = sanitized_changes
+
         logger.info(
             f"[resolve-issue] Groq generated {len(result.changes)} file change(s). "
             f"Commit: '{result.commit_message}'"
         )
 
+        # Progress Step 3: Coding
+        _update_discussion_progress(
+            token=github_token,
+            comment_id=payload.progress_comment_id,
+            body=_build_progress_markdown(
+                issue_number=payload.issue_number,
+                issue_url=issue_url,
+                author=author,
+                stage="coding",
+                file_count=len(file_contents),
+                changed_paths=[c.path for c in result.changes],
+            )
+        )
+
+        # Step 4: Commit and push changes via Git Data API
+        commit_sha, tree_sha = _commit_and_push_changes(
+            repo=payload.repo_full_name,
+            base_tree_sha=payload.base_tree_sha,
+            base_commit_sha=payload.base_commit_sha,
+            branch_name=branch_name,
+            changes=result.changes,
+            commit_message=result.commit_message,
+            author=author,
+            token=github_token,
+        )
+        logger.info(f"[resolve-issue] Committed {commit_sha[:8]} on branch {branch_name}")
+
+        # Progress Step 4: Committed (ready for PR opening)
+        _update_discussion_progress(
+            token=github_token,
+            comment_id=payload.progress_comment_id,
+            body=_build_progress_markdown(
+                issue_number=payload.issue_number,
+                issue_url=issue_url,
+                author=author,
+                stage="committed",
+                file_count=len(file_contents),
+                changed_paths=[c.path for c in result.changes],
+                commit_sha=commit_sha,
+                summary=result.summary,
+            )
+        )
+
         return {
             "status": "success",
+            "commit_sha": commit_sha,
+            "tree_sha": tree_sha,
+            "branch_name": branch_name,
             "commit_message": result.commit_message,
             "summary": result.summary,
             "changes": [{"path": c.path, "content": c.content} for c in result.changes],
+            "files_changed": len(result.changes),
+            "changed_paths": [c.path for c in result.changes],
             "files_analyzed": len(file_contents),
             "tinyfish_summary": tf_summary,
             "tinyfish_screenshots": tf_screenshots,
             "live_url": live_target_url,
+            "progress_comment_id": payload.progress_comment_id,
+            "author": author,
         }
-
-    except RuntimeError as e:
-        # Config errors (missing API key etc.) — surface clearly
-        logger.error(f"[resolve-issue] Configuration error: {e}")
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
     except Exception as e:
         logger.error(f"[resolve-issue] Unexpected error: {e}", exc_info=True)
+        _update_discussion_progress(
+            token=github_token,
+            comment_id=payload.progress_comment_id,
+            body=_build_progress_markdown(
+                issue_number=payload.issue_number,
+                issue_url=issue_url,
+                author=author,
+                stage="error",
+                file_count=len(file_contents),
+                error_message=str(e),
+            )
+        )
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()},
@@ -824,6 +1196,60 @@ def triage_discussion(payload: TriageDiscussionPayload):
 
     except Exception as e:
         logger.error(f"[triage-discussion] Error during triage: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+        )
+
+
+# ---------------------------------------------------------------------------
+# /chat-turing — Intent-driven Q&A & live TinyFish investigation endpoint
+# ---------------------------------------------------------------------------
+
+class ChatTuringPayload(BaseModel):
+    """Payload from n8n when a discussion comment mentions Turing."""
+    discussion_title: str = Field(..., description="GitHub discussion title")
+    discussion_body: str = Field(..., description="GitHub discussion body")
+    comment_body: str = Field(..., description="Incoming comment text")
+    comment_author: str = Field(..., description="Author of the comment")
+    discussion_number: Optional[Any] = Field(None, description="Discussion number")
+    discussion_url: Optional[str] = Field(None, description="Discussion URL")
+    discussion_id: Optional[str] = Field(None, description="GraphQL node ID of discussion")
+    comment_id: Optional[str] = Field(None, description="GraphQL node ID of comment")
+    repository: Optional[str] = Field("YASHK-arch/RepoOwl-extension", description="Repository full name")
+    live_url: Optional[str] = Field(None, description="Optional live deployment URL")
+
+
+@app.post("/chat-turing")
+def chat_turing(payload: ChatTuringPayload):
+    """
+    Intelligent live Q&A endpoint for Turing-agent:
+    1. Parses the incoming comment using the LLM intent layer (Groq).
+    2. Serializes appropriate execution:
+       - FIND_RELATED_ISSUES: Uses TinyFish Web Fetch API to scrape repo issues & PRs, checks for component conflicts.
+       - REPRODUCE_BUG: Uses TinyFish Web Agent to automate live browser reproduction and capture visual screencast/proof.
+       - ANALYZE_PROPOSAL: Evaluates trade-offs, architectural drawbacks, and edge-cases of proposed alternatives.
+       - GENERAL_QA: Direct, contextual technical answer without boilerplate validation templates.
+    3. Returns the reply markdown.
+    """
+    logger.info(f"[chat-turing] Processing comment from @{payload.comment_author}: '{payload.comment_body[:80]}'")
+    try:
+        from turing_qa import dispatch_turing_chat
+
+        result = dispatch_turing_chat(
+            discussion_title=payload.discussion_title,
+            discussion_body=payload.discussion_body,
+            comment_body=payload.comment_body,
+            comment_author=payload.comment_author,
+            repository=payload.repository or "YASHK-arch/RepoOwl-extension",
+            discussion_url=payload.discussion_url,
+            live_url=payload.live_url,
+            tinyfish_api_key=os.getenv("TINYFISH_API_KEY"),
+            github_token=os.getenv("GITHUB_TOKEN")
+        )
+        return result
+    except Exception as e:
+        logger.error(f"[chat-turing] Error processing chat: {e}", exc_info=True)
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
