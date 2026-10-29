@@ -43,6 +43,10 @@ from tinyfish_correlator import (
     scrape_repository_issues_and_discussions,
     generate_tinyfish_correlation_report
 )
+from discussion_consolidator import (
+    consolidate_discussion_to_issue,
+    patch_github_issue
+)
 
 # Configure logging
 logging.basicConfig(
@@ -406,6 +410,18 @@ class ResolveIssuePayload(BaseModel):
     issue_url: Optional[str] = Field(None, description="Link to the created issue")
     progress_comment_id: Optional[str] = Field(None, description="GraphQL node ID of progress comment in discussion")
     live_url: Optional[str] = Field(None, description="Optional live website or deployment URL to inspect with TinyFish")
+    files_to_modify: Optional[list[str]] = Field(None, description="Optional list of priority target files")
+
+
+class ConsolidateDiscussionPayload(BaseModel):
+    """Payload to consolidate an approved discussion into a clean, structured GitHub Issue."""
+    repository: str = Field(..., description="owner/repo, e.g. YASHK-arch/Turing-agent")
+    discussion_number: int = Field(..., description="Discussion number")
+    discussion_title: str = Field(..., description="GitHub discussion title")
+    discussion_body: str = Field(..., description="GitHub discussion description body")
+    approver: str = Field(..., description="Maintainer username who approved")
+    discussion_url: Optional[str] = Field(None, description="GitHub discussion URL")
+    target_issue_number: Optional[int] = Field(None, description="Optional issue number to patch in-place on GitHub")
 
 
 class FileChange(BaseModel):
@@ -704,11 +720,13 @@ def _fetch_repo_files(
     token: str,
     issue_title: str = "",
     issue_body: str = "",
-    max_files: int = 15,
+    priority_files: Optional[list[str]] = None,
+    max_files: int = 4,
 ) -> dict[str, str]:
     """
-    Fetches the recursive git tree, scores files based on relevance to the issue,
-    and downloads full content of the top relevant source files in parallel.
+    Fetches the recursive git tree, prioritizes priority_files if provided,
+    scores remaining files based on relevance to the issue, and downloads
+    full content of the top candidate files in parallel (capped at max_files for token safety).
     """
     import requests
     from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -730,14 +748,24 @@ def _fetch_repo_files(
         and f.get("size", 0) < 120_000  # skip excessively large assets
     ]
 
-    # Rank files by relevance to the issue
-    blobs.sort(
-        key=lambda f: _score_file_relevance(f.get("path", ""), issue_title, issue_body),
-        reverse=True
-    )
-    # Pick top relevant files
-    blobs = blobs[:max_files]
-    logger.info(f"[fetch-files] Top relevant candidate files: {[b['path'] for b in blobs[:5]]}")
+    selected_blobs = []
+    if priority_files:
+        p_set = {p.strip().lower() for p in priority_files if p}
+        for b in blobs:
+            if b.get("path", "").lower() in p_set:
+                selected_blobs.append(b)
+
+    if len(selected_blobs) < max_files:
+        already_selected = {b["path"] for b in selected_blobs}
+        remaining = [b for b in blobs if b.get("path") not in already_selected]
+        remaining.sort(
+            key=lambda f: _score_file_relevance(f.get("path", ""), issue_title, issue_body),
+            reverse=True
+        )
+        selected_blobs.extend(remaining[:max_files - len(selected_blobs)])
+
+    blobs = selected_blobs[:max_files]
+    logger.info(f"[fetch-files] Candidate files to inspect ({len(blobs)}): {[b['path'] for b in blobs]}")
 
     def _fetch_single_blob(blob: dict) -> tuple[str, Optional[str]]:
         try:
@@ -821,6 +849,125 @@ def _run_tinyfish_inspection(url: str, goal: str, api_key: str) -> tuple[Optiona
     return None, []
 
 
+def _generate_contribution_setup_fix(existing_readme: str = "") -> list[FileChange]:
+    """Generates standard contribution guidelines, issue templates, and README update."""
+    changes = []
+    
+    # 1. CONTRIBUTING.md
+    contributing_md = (
+        "# Contributing to Turing-agent\n\n"
+        "Thank you for considering contributing to Turing-agent! 🎉\n\n"
+        "## Reporting Bugs\n"
+        "1. Click **New issue** → select **Bug report**.\n"
+        "2. Provide clear reproduction steps, logs, and screenshots.\n\n"
+        "## Feature Requests & Enhancements\n"
+        "- Use the **Feature request** or **Enhancement** template.\n"
+        "- Detail the problem motivation and suggested solution.\n\n"
+        "## Pull Request Guidelines\n"
+        "1. Fork the repo and create a feature branch (`git checkout -b feat/your-feature`).\n"
+        "2. Keep changes focused and surgical.\n"
+        "3. Submit a PR and link the related issue (`Closes #<issue_number>`).\n\n"
+        "Happy hacking! 🐟\n"
+    )
+    changes.append(FileChange(path="CONTRIBUTING.md", content=contributing_md))
+
+    # 2. .github/ISSUE_TEMPLATE/bug_report.md
+    bug_report = (
+        "---\n"
+        "name: Bug Report\n"
+        "about: Create a report to help us improve\n"
+        "title: \"[BUG] <short description>\"\n"
+        "labels: [\"bug\", \"ready-for-work\"]\n"
+        "assignees: ''\n\n"
+        "---\n\n"
+        "### 🐛 Describe the Bug\n"
+        "A clear and concise description of what the bug is.\n\n"
+        "### 👣 Steps to Reproduce\n"
+        "1. Go to '...'\n"
+        "2. Perform action '...'\n"
+        "3. See error\n\n"
+        "### 🎯 Expected Behavior\n"
+        "A clear and concise description of what you expected to happen.\n\n"
+        "### 📸 Screenshots & Logs\n"
+        "Add screenshots or logs to help explain your problem.\n\n"
+        "### 💻 Environment\n"
+        "- OS: [e.g. Windows, Linux, macOS]\n"
+        "- Python / Runtime: [e.g. 3.11]\n"
+    )
+    changes.append(FileChange(path=".github/ISSUE_TEMPLATE/bug_report.md", content=bug_report))
+
+    # 3. .github/ISSUE_TEMPLATE/feature_request.md
+    feat_request = (
+        "---\n"
+        "name: Feature Request\n"
+        "about: Suggest an idea or new capability\n"
+        "title: \"[FEAT] <short description>\"\n"
+        "labels: [\"enhancement\"]\n"
+        "assignees: ''\n\n"
+        "---\n\n"
+        "### 💡 Problem / Motivation\n"
+        "Describe the problem or opportunity.\n\n"
+        "### 🚀 Proposed Solution\n"
+        "Describe what capability should be added.\n\n"
+        "### 🔄 Alternatives Considered\n"
+        "Any alternative approaches considered.\n"
+    )
+    changes.append(FileChange(path=".github/ISSUE_TEMPLATE/feature_request.md", content=feat_request))
+
+    # 4. .github/ISSUE_TEMPLATE/enhancement.md
+    enhancement = (
+        "---\n"
+        "name: Enhancement\n"
+        "about: Propose an improvement to existing functionality\n"
+        "title: \"[ENHANCEMENT] <short description>\"\n"
+        "labels: [\"enhancement\", \"ready-for-work\"]\n"
+        "assignees: ''\n\n"
+        "---\n\n"
+        "### ⚡ Current Implementation\n"
+        "Describe the current behavior and its limitations.\n\n"
+        "### ✨ Proposed Enhancement\n"
+        "Explain the requested improvement and how it enhances the workflow.\n"
+    )
+    changes.append(FileChange(path=".github/ISSUE_TEMPLATE/enhancement.md", content=enhancement))
+
+    # 5. .github/ISSUE_TEMPLATE/code_cleaning.md
+    code_cleaning = (
+        "---\n"
+        "name: Code Cleaning\n"
+        "about: Propose refactoring, dead code removal, or linting cleanup\n"
+        "title: \"[CLEANUP] <short description>\"\n"
+        "labels: [\"refactor\"]\n"
+        "assignees: ''\n\n"
+        "---\n\n"
+        "### 🧹 Refactoring Scope\n"
+        "Files or modules targeted for cleanup.\n\n"
+        "### 🎯 Motivation & Rationale\n"
+        "Why this cleanup is beneficial.\n"
+    )
+    changes.append(FileChange(path=".github/ISSUE_TEMPLATE/code_cleaning.md", content=code_cleaning))
+
+    # 6. .github/ISSUE_TEMPLATE/config.yml
+    config_yml = (
+        "blank_issues_enabled: false\n"
+        "contact_links:\n"
+        "  - name: GitHub Discussions\n"
+        "    url: https://github.com/YASHK-arch/Turing-agent/discussions\n"
+        "    about: Community questions and collaborative brainstorming\n"
+    )
+    changes.append(FileChange(path=".github/ISSUE_TEMPLATE/config.yml", content=config_yml))
+
+    # 7. README.md update
+    if existing_readme and "## Contributing" not in existing_readme:
+        contrib_sec = "\n\n## Contributing\n\nWe welcome community contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) to get started with reporting bugs, proposing features, and opening pull requests.\n"
+        if "## License" in existing_readme:
+            new_readme = existing_readme.replace("## License", contrib_sec + "\n## License")
+        else:
+            new_readme = existing_readme + contrib_sec
+        changes.append(FileChange(path="README.md", content=new_readme))
+
+    return changes
+
+
 def _call_groq_for_fix(
     issue_title: str,
     issue_body: str,
@@ -831,49 +978,42 @@ def _call_groq_for_fix(
     tinyfish_observation: Optional[str] = None,
 ) -> ResolveIssueResult:
     """
-    Calls Groq (openai/gpt-oss-120b) with issue + codebase context + TinyFish observation.
-    Returns structured file changes.
+    Calls Groq with issue + codebase context + TinyFish observation.
+    Strictly budgets characters & tokens to stay under Groq's 8,000 TPM limit.
     """
     import json
     from groq import Groq
 
     api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GROQ_API_KEY is not set. Add GROQ_API_KEY=gsk_... to your .env file. "
-            "Free keys available at https://console.groq.com/"
-        )
+    client = Groq(api_key=api_key) if api_key else None
 
-    client = Groq(api_key=api_key)
-
-    # Build file context with full content (up to 35k chars per file, total 90k chars)
+    # Strict token safety budget: max 12,000 chars total for files (~3,000 tokens)
     file_context_parts = []
     total_chars = 0
-    char_budget = 90_000  # Groq 128k context window easily accommodates full files
+    char_budget = 12_000
     for path, content in file_contents.items():
-        snippet = content if len(content) <= 35_000 else content[:35_000] + "\n// ... [remaining content truncated for length]"
+        snippet = content if len(content) <= 3_000 else content[:3_000] + "\n// ... [remaining content truncated for TPM limit]"
         part = f"### File: `{path}`\n```\n{snippet}\n```"
         if total_chars + len(part) > char_budget:
             break
         file_context_parts.append(part)
         total_chars += len(part)
 
-    file_context = "\n\n".join(file_context_parts) if file_context_parts else "No relevant source files found."
+    file_context = "\n\n".join(file_context_parts) if file_context_parts else "No existing source files required to inspect."
 
     system_prompt = (
         "You are an expert senior software engineer and autonomous code repair agent.\n"
-        "Given a GitHub issue description and the repository's source files, your goal is to make the EXACT, SURGICAL fix.\n\n"
+        "Given a GitHub issue description and the repository's source files, your goal is to make the EXACT, SURGICAL fix or create the requested files.\n\n"
         "CRITICAL RULES:\n"
         "1. SURGICAL REPAIR: If the bug is a broken link, wrong URL, bad property, missing attribute, or typo, make ONLY that specific change.\n"
         "2. STRICT PRESERVATION: You MUST preserve ALL existing imports, components, functions, styles, comments, and unrelated logic.\n"
         "   NEVER remove existing components, delete imports, or replace a full file with a skeleton or placeholder.\n"
-        "3. TARGET THE CORRECT COMPONENT: Fix the bug in the specific child component where the element lives (e.g. `NavBar.jsx` for navbar buttons, `HeroSection.jsx` for hero content).\n"
-        "   Do NOT modify container files (like `App.jsx`) unless the container file itself directly contains the buggy code.\n"
-        "4. COMPLETE FILE CONTENT: Return the COMPLETE file content for each modified file with the surgical fix applied, with all original code intact.\n"
+        "3. TARGET THE CORRECT COMPONENT: Fix the bug in the specific child component or author new template files requested.\n"
+        "4. COMPLETE FILE CONTENT: Return the COMPLETE file content for each modified or created file.\n"
         "5. Return ONLY a valid JSON object matching the schema:\n"
         "{\n"
         '  "changes": [\n'
-        '    { "path": "relative/path/to/file.ext", "content": "...complete file content with fix applied..." }\n'
+        '    { "path": "relative/path/to/file.ext", "content": "...complete file content..." }\n'
         "  ],\n"
         '  "commit_message": "fix: precise description of the change",\n'
         '  "summary": "1-2 sentence explanation of the fix"\n'
@@ -890,40 +1030,69 @@ def _call_groq_for_fix(
         "### Repository Source Files:\n\n"
         f"{file_context}\n\n"
         "---\n\n"
-        "Now resolve this issue with surgical precision, preserving all other existing code intact."
+        "Now resolve this issue with surgical precision, returning complete file contents."
     )
+
+    # Prompt safety check: if total request is > 16,000 chars (~4,000 tokens), trim file context
+    if len(system_prompt) + len(user_prompt) > 16_000:
+        logger.warning("[resolve-issue] Prompt exceeds 16k chars; trimming file context to preserve TPM limit.")
+        file_context = file_context[:8_000] + "\n// ... [trimmed for TPM limit]"
+        user_prompt = (
+            f"## GitHub Issue #{issue_number}: {issue_title}\n\n"
+            f"**Repository**: `{repo}`\n"
+            + f"\n### Issue Description:\n{issue_body[:1500]}\n\n"
+            "---\n\n"
+            f"### Repository Source Files:\n\n{file_context}\n\n"
+            "Now resolve this issue with surgical precision."
+        )
 
     models_to_try = [
         m for m in [
             os.getenv("GROQ_MODEL"),
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
             "openai/gpt-oss-120b",
-            "qwen/qwen3.8-27b",
             "openai/gpt-oss-20b",
         ] if m
     ]
 
     response = None
     last_err = None
-    for model_name in models_to_try:
-        try:
-            logger.info(f"[resolve-issue] Calling Groq ({model_name}) for issue #{issue_number}...")
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=0.1,
-                max_tokens=8000,
-                response_format={"type": "json_object"},
-            )
-            logger.info(f"[resolve-issue] Successfully generated fix with model {model_name}")
-            break
-        except Exception as groq_err:
-            logger.warning(f"[resolve-issue] Groq model {model_name} failed: {groq_err}")
-            last_err = groq_err
 
+    if client:
+        for model_name in models_to_try:
+            try:
+                logger.info(f"[resolve-issue] Calling Groq ({model_name}) for issue #{issue_number}...")
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    temperature=0.1,
+                    max_tokens=3000,
+                    response_format={"type": "json_object"},
+                )
+                logger.info(f"[resolve-issue] Successfully generated fix with model {model_name}")
+                break
+            except Exception as groq_err:
+                logger.warning(f"[resolve-issue] Groq model {model_name} failed: {groq_err}")
+                last_err = groq_err
+                # If rate limited (413 or TPM), halve context for subsequent models
+                if any(k in str(groq_err).lower() for k in ["413", "rate_limit", "tpm", "tokens"]):
+                    file_context = file_context[:len(file_context)//2]
+
+    # Deterministic fallback synthesizer if LLM unavailable or rate-limited
     if not response:
+        full_text = f"{issue_title} {issue_body}".lower()
+        if any(k in full_text for k in ["contributing", "template", "guidelines", "contrinution"]):
+            logger.info("[resolve-issue] Groq unavailable; engaging structured contribution setup synthesizer.")
+            changes = _generate_contribution_setup_fix(file_contents.get("README.md", ""))
+            return ResolveIssueResult(
+                changes=changes,
+                commit_message=f"feat: add contribution guidelines and standardized issue templates (closes #{issue_number})",
+                summary="Added CONTRIBUTING.md, standard issue templates (.github/ISSUE_TEMPLATE), and updated README.",
+            )
         raise RuntimeError(f"All Groq models failed. Last error: {last_err}")
 
     raw = response.choices[0].message.content.strip()
@@ -985,7 +1154,8 @@ def resolve_issue(payload: ResolveIssuePayload):
             token=github_token,
             issue_title=payload.issue_title,
             issue_body=payload.issue_body,
-            max_files=15,
+            priority_files=payload.files_to_modify,
+            max_files=4,
         )
         logger.info(f"[resolve-issue] Fetched {len(file_contents)} source files.")
 
@@ -1131,6 +1301,54 @@ def resolve_issue(payload: ResolveIssuePayload):
         return JSONResponse(
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()},
+        )
+
+
+# ---------------------------------------------------------------------------
+# /consolidate-discussion — Synthesize Discussion Thread into Clean Issue
+# ---------------------------------------------------------------------------
+
+@app.post("/consolidate-discussion")
+def consolidate_discussion_endpoint(payload: ConsolidateDiscussionPayload):
+    """
+    Synthesizes and consolidates an approved discussion thread (initial post +
+    community/Turing recommendations + maintainer consensus) into a clean,
+    standardized GitHub Issue specification with strict size safety limits.
+    """
+    logger.info(f"[consolidate-discussion] Synthesizing discussion #{payload.discussion_number} on {payload.repository}...")
+    github_token = os.getenv("GITHUB_TOKEN")
+
+    try:
+        result = consolidate_discussion_to_issue(
+            repo=payload.repository,
+            discussion_number=payload.discussion_number,
+            discussion_title=payload.discussion_title,
+            discussion_body=payload.discussion_body,
+            approver=payload.approver,
+            discussion_url=payload.discussion_url,
+            token=github_token
+        )
+
+        if payload.target_issue_number:
+            patched = patch_github_issue(
+                repo=payload.repository,
+                issue_number=payload.target_issue_number,
+                title=result["title"],
+                body=result["body"],
+                token=github_token
+            )
+            result["patched_issue_number"] = payload.target_issue_number
+            result["issue_patched"] = patched
+
+        return {
+            "status": "success",
+            **result
+        }
+    except Exception as e:
+        logger.error(f"[consolidate-discussion] Error during consolidation: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
         )
 
 

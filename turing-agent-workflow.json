@@ -101,12 +101,23 @@
       "main": [
         [
           {
-            "node": "Create Repository Issue",
+            "node": "Consolidate Discussion Issue",
             "type": "main",
             "index": 0
           },
           {
             "node": "Acknowledge with Eyes Reaction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidate Discussion Issue": {
+      "main": [
+        [
+          {
+            "node": "Create Repository Issue",
             "type": "main",
             "index": 0
           }
@@ -506,6 +517,26 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "https://pretended-extinct-antirust.ngrok-free.dev/consolidate-discussion",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  maintainer_login: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login\n}) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "node-consolidate-discussion",
+      "name": "Consolidate Discussion Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        480,
+        750
+      ]
+    },
+    {
+      "parameters": {
         "authentication": "oAuth2",
         "owner": {
           "__rl": true,
@@ -517,8 +548,8 @@
           "mode": "name",
           "value": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.name }}"
         },
-        "title": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title }}",
-        "body": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body }}\\n\\n---\\nCreated from discussion #{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number }}: {{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url }}\\nApproved by @{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login }}",
+        "title": "={{ $json.title }}",
+        "body": "={{ $json.body }}",
         "labels": [
           {
             "label": "ready-for-work"
@@ -706,7 +737,7 @@
         "url": "https://pretended-extinct-antirust.ngrok-free.dev/resolve-issue",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ issue_title: $('Create Repository Issue').item.json.title, issue_body: $('Create Repository Issue').item.json.body, issue_number: $('Create Repository Issue').item.json.number, repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, base_tree_sha: $('Get Base Commit').item.json.tree.sha, base_commit_sha: $('Get Base Commit').item.json.sha, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, issue_url: $('Create Repository Issue').item.json.html_url, progress_comment_id: $('Post Initial Progress Comment').item.json.data.addDiscussionComment.comment.id }) }}",
+        "jsonBody": "={{ JSON.stringify({ issue_title: $('Create Repository Issue').item.json.title, issue_body: $('Create Repository Issue').item.json.body, issue_number: $('Create Repository Issue').item.json.number, repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, base_tree_sha: $('Get Base Commit').item.json.tree.sha, base_commit_sha: $('Get Base Commit').item.json.sha, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, issue_url: $('Create Repository Issue').item.json.html_url, progress_comment_id: $('Post Initial Progress Comment').item.json.data.addDiscussionComment.comment.id, files_to_modify: $('Consolidate Discussion Issue').item.json.files_to_modify }) }}",
         "options": {
           "timeout": 300000
         },
