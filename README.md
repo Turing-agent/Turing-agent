@@ -360,6 +360,12 @@ The following limitations are based on the source files in this repository snaps
 
 For development changes, use feature branches and open reviewed pull requests. Document new endpoints, environment variables, n8n exports, and behavior changes alongside the corresponding code changes.
 
+
+
+## Contributing
+
+We welcome community contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) to get started with reporting bugs, proposing features, and opening pull requests.
+
 ## License
 
 Distributed under the MIT License. See [LICENSE](LICENSE).
