@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - key: PORT
-        value: 8000
+        value: "8000"
       - key: GROQ_API_KEY
         sync: false
       - key: TINYFISH_API_KEY
@@ -16,4 +16,3 @@ services:
         sync: false
       - key: TINYFISH_MOCK
         value: "false"
-
