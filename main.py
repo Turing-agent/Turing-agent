@@ -13,7 +13,7 @@ import requests
 import logging
 import traceback
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
