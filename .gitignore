@@ -11,3 +11,5 @@ uvicorn_*.log
 temp/*
 !temp/.gitignore
 !temp/.gitkeep
+node_modules/
+dist/

@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Turing-Agent: Autonomous GitHub QA Maintainer & Bug Investigator powered by TinyFish",
   "main": "bin/turing.js",
+  "scripts": {
+    "dev": "vite frontend --host 0.0.0.0",
+    "build": "vite build frontend",
+    "preview": "vite preview frontend"
+  },
   "bin": {
     "turing-agent": "./bin/turing.js",
     "turing": "./bin/turing.js"
@@ -20,5 +25,17 @@
     "triage"
   ],
   "author": "Turing-agent",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@tailwindcss/vite": "latest",
+    "@vitejs/plugin-react": "latest",
+    "tailwindcss": "latest",
+    "vite": "latest"
+  },
+  "dependencies": {
+    "framer-motion": "latest",
+    "lucide-react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  }
 }
