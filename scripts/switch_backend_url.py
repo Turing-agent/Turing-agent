@@ -11,6 +11,7 @@ Usage:
 import sys
 sys.stdout.reconfigure(encoding="utf-8")
 import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 from scripts.n8n_mcp_client import call_mcp
 
@@ -40,21 +41,33 @@ def switch_url(new_url: str):
     # 2. Update cloud workflow via MCP
     res = call_mcp("tools/call", {"name": "get_workflow_details", "arguments": {"workflowId": workflow_id}})
     cloud_wf = json.loads(res["result"]["content"][0]["text"])["workflow"]
-    cloud_nodes = {n["name"]: n for n in cloud_wf["nodes"]}
+    cloud_nodes = cloud_wf["nodes"]
 
     operations = []
-    for name in nodes_to_update:
-        if name in cloud_nodes:
-            cn = cloud_nodes[name]
-            url = cn.get("parameters", {}).get("url", "")
-            if OLD_DOMAIN in url:
-                cn["parameters"]["url"] = url.replace(OLD_DOMAIN, new_url)
-                operations.append({
-                    "type": "updateNodeParameters",
-                    "nodeName": name,
-                    "parameters": cn["parameters"],
-                    "replace": True
-                })
+    for cn in cloud_nodes:
+        url = cn.get("parameters", {}).get("url", "")
+        name = cn["name"]
+        if OLD_DOMAIN in url:
+            print(f"Found node to update in cloud: {name} -> {url}")
+            cn["parameters"]["url"] = url.replace(OLD_DOMAIN, new_url)
+            operations.append({
+                "type": "updateNodeParameters",
+                "nodeName": name,
+                "parameters": cn["parameters"],
+                "replace": True
+            })
+        elif "ngrok" in url:
+            print(f"Found ngrok node with different domain: {name} -> {url}")
+            # Replace whatever ngrok url with new_url
+            import re
+            new_node_url = re.sub(r"https?://[^\s/]+\.ngrok-free\.dev", new_url, url)
+            cn["parameters"]["url"] = new_node_url
+            operations.append({
+                "type": "updateNodeParameters",
+                "nodeName": name,
+                "parameters": cn["parameters"],
+                "replace": True
+            })
 
     if operations:
         print(f"Submitting {len(operations)} updates to n8n Cloud...")
@@ -84,3 +97,4 @@ if __name__ == "__main__":
         print("Usage: python scripts/switch_backend_url.py <NEW_PRODUCTION_URL>")
         sys.exit(1)
     switch_url(sys.argv[1])
+

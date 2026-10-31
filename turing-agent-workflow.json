@@ -652,7 +652,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/consolidate-discussion",
+        "url": "https://turing-agent-backend.onrender.com/consolidate-discussion",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({\n  repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  maintainer_login: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login\n}) }}",
@@ -881,7 +881,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/resolve-issue",
+        "url": "https://turing-agent-backend.onrender.com/resolve-issue",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ (() => {\n  const trigger = ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json;\n  const issue = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const progressComment = $('Post Initial Progress Comment').isExecuted ? $('Post Initial Progress Comment').item.json : $('Post Approved Already Raised Comment').item.json;\n  const commentId = progressComment && progressComment.data && progressComment.data.addDiscussionComment && progressComment.data.addDiscussionComment.comment ? progressComment.data.addDiscussionComment.comment.id : null;\n  const filesToModify = $('Consolidate Discussion Issue').isExecuted ? ($('Consolidate Discussion Issue').item.json.files_to_modify || []) : [];\n  return JSON.stringify({\n    issue_title: issue.title,\n    issue_body: issue.body,\n    issue_number: issue.number,\n    repo_full_name: trigger.body.repository.full_name,\n    base_tree_sha: $('Get Base Commit').item.json.tree.sha,\n    base_commit_sha: $('Get Base Commit').item.json.sha,\n    discussion_url: trigger.body.discussion.html_url,\n    author: trigger.body.discussion.user.login,\n    issue_url: issue.html_url,\n    progress_comment_id: commentId,\n    files_to_modify: filesToModify\n  });\n})() }}",
@@ -945,7 +945,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/triage-discussion",
+        "url": "https://turing-agent-backend.onrender.com/triage-discussion",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }) }}",
@@ -1126,7 +1126,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/chat-turing",
+        "url": "https://turing-agent-backend.onrender.com/chat-turing",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1188,7 +1188,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/check-discussion-issue",
+        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
@@ -1288,7 +1288,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/raise-issue-only",
+        "url": "https://turing-agent-backend.onrender.com/raise-issue-only",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, requester: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login }) }}",
@@ -1324,7 +1324,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/check-discussion-issue",
+        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
