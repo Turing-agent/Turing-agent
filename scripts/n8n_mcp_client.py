@@ -25,12 +25,17 @@ def call_mcp(method, params=None, req_id=1):
         "method": method,
         "params": params or {}
     }
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
+    resp = requests.post(url, headers=headers, json=payload, timeout=60)
     text = resp.text
-    for line in text.splitlines():
-        if line.startswith("data:"):
-            data_str = line[len("data:"):].strip()
-            return json.loads(data_str)
+    events = text.split("\n\n")
+    for ev in events:
+        data_lines = [l[5:].strip() if l.startswith("data:") else l for l in ev.split("\n") if l.startswith("data:") or l.startswith(" ")]
+        if data_lines:
+            combined = "\n".join(data_lines)
+            try:
+                return json.loads(combined)
+            except Exception:
+                pass
     try:
         return resp.json()
     except Exception:
@@ -39,6 +44,4 @@ def call_mcp(method, params=None, req_id=1):
 if __name__ == "__main__":
     res = call_mcp("tools/list")
     tools = res.get("result", {}).get("tools", [])
-    print(f"Found {len(tools)} tools:")
-    for t in tools:
-        print(f"  - {t['name']}: {t.get('description', '')[:80]}")
+    print(f"Found {len(tools)} tools")

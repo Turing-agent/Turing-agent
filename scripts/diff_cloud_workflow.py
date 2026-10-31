@@ -64,3 +64,4 @@ if __name__ == "__main__":
     extra_in_cloud = cloud_node_names - local_node_names
     print(f"\nNodes to add to cloud ({len(missing_in_cloud)}):", missing_in_cloud)
     print(f"Extra nodes in cloud ({len(extra_in_cloud)}):", extra_in_cloud)
+

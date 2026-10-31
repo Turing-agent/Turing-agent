@@ -1541,12 +1541,29 @@ def check_discussion_issue(payload: CheckDiscussionIssuePayload):
             body = comment.get("body", "")
             m = re.search(r'<!-- turing-raised-issue #(\d+) (https?://\S+) -->', body)
             if m:
+                issue_num = int(m.group(1))
+                issue_url = m.group(2)
+                issue_title = ""
+                issue_body = ""
+                try:
+                    i_res = requests.get(
+                        f"https://api.github.com/repos/{payload.repository}/issues/{issue_num}",
+                        headers=headers, timeout=10
+                    )
+                    if i_res.ok:
+                        i_data = i_res.json()
+                        issue_title = i_data.get("title", "")
+                        issue_body = i_data.get("body", "")
+                except Exception:
+                    pass
                 return {
                     "exists": True,
-                    "issue_number": int(m.group(1)),
-                    "issue_url": m.group(2)
+                    "issue_number": issue_num,
+                    "issue_url": issue_url,
+                    "issue_title": issue_title,
+                    "issue_body": issue_body
                 }
-        return {"exists": False, "issue_number": None, "issue_url": None}
+        return {"exists": False, "issue_number": None, "issue_url": None, "issue_title": None, "issue_body": None}
     except Exception as e:
         logger.error(f"[check-discussion-issue] Error: {e}", exc_info=True)
         return {"exists": False, "issue_number": None, "issue_url": None}

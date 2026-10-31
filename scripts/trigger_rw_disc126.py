@@ -77,3 +77,4 @@ if rw_comment:
     r = requests.post("http://localhost:8000/raise-issue-only", json=payload, timeout=60)
     print("Status:", r.status_code)
     print("Result:", r.text)
+
