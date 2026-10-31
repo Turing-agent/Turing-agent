@@ -43,22 +43,30 @@ def _call_groq_chat(system_prompt: str, user_prompt: str, max_tokens: int = 2500
     models = [m for m in models if m]
 
     for model_name in models:
-        try:
-            logger.info(f"[TinyFish Correlator] Calling Groq ({model_name})...")
-            res = client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.2,
-                max_tokens=max_tokens
-            )
-            return res.choices[0].message.content.strip()
-        except Exception as e:
-            logger.warning(f"[TinyFish Correlator] Model {model_name} failed: {e}")
+        for attempt in range(3):
+            try:
+                logger.info(f"[TinyFish Correlator] Calling Groq ({model_name}) attempt {attempt + 1}...")
+                res = client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=0.2,
+                    max_tokens=max_tokens
+                )
+                return res.choices[0].message.content.strip()
+            except Exception as e:
+                err_str = str(e).lower()
+                if "rate limit" in err_str or "429" in err_str or "too many requests" in err_str:
+                    backoff = (2 ** attempt) * 2
+                    logger.warning(f"[TinyFish Correlator] Rate limit on {model_name}. Backing off for {backoff}s... ({e})")
+                    time.sleep(backoff)
+                else:
+                    logger.warning(f"[TinyFish Correlator] Model {model_name} failed: {e}")
+                    break
 
-    raise RuntimeError("All Groq models failed for correlator.")
+    raise RuntimeError("All Groq models failed for correlator after rate-limit backoff retries.")
 
 
 def generate_turing_validation(

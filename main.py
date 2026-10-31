@@ -12,6 +12,7 @@ import time
 import requests
 import logging
 import traceback
+import threading
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
@@ -1366,8 +1367,22 @@ class TriageDiscussionPayload(BaseModel):
     repository: Optional[str] = Field("YASHK-arch/RepoOwl-extension", description="Full repo name owner/repo")
 
 
+# Concurrency Lock & Rate Limit Safety Pacing
+_triage_lock = threading.Lock()
+_last_triage_timestamp = 0.0
+TRIAGE_PACE_SECONDS = 3.5  # Prevents Groq 429 & GitHub secondary rate limits under high load
+
 @app.post("/triage-discussion")
 def triage_discussion(payload: TriageDiscussionPayload):
+    global _last_triage_timestamp
+    with _triage_lock:
+        now = time.time()
+        elapsed = now - _last_triage_timestamp
+        if elapsed < TRIAGE_PACE_SECONDS:
+            sleep_needed = TRIAGE_PACE_SECONDS - elapsed
+            logger.info(f"[triage-discussion] Rate safety pacing: sleeping {sleep_needed:.2f}s before processing #{payload.discussion_number}...")
+            time.sleep(sleep_needed)
+        _last_triage_timestamp = time.time()
     """
     Called immediately upon a new GitHub discussion.
     1. Generates Turing's maintainer validation comment.
@@ -1474,3 +1489,180 @@ def chat_turing(payload: ChatTuringPayload):
         )
 
 
+
+
+
+
+# ---------------------------------------------------------------------------
+# /check-discussion-issue — Check if an issue was already raised for a discussion
+# ---------------------------------------------------------------------------
+
+class CheckDiscussionIssuePayload(BaseModel):
+    repository: str
+    discussion_node_id: str   # GraphQL node ID of the discussion
+
+@app.post("/check-discussion-issue")
+def check_discussion_issue(payload: CheckDiscussionIssuePayload):
+    """
+    Scans all comments on a discussion for the <!-- turing-raised-issue #N URL --> marker.
+    Returns {exists: bool, issue_number: int|None, issue_url: str|None}
+    """
+    github_token = os.getenv("GITHUB_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "Turing-agent"
+    }
+    query = """
+    query($id: ID!) {
+      node(id: $id) {
+        ... on Discussion {
+          comments(first: 50) {
+            nodes { body author { login } }
+          }
+        }
+      }
+    }
+    """
+    try:
+        res = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": query, "variables": {"id": payload.discussion_node_id}},
+            headers=headers, timeout=15
+        )
+        data = res.json()
+        nodes = (
+            data.get("data", {})
+                .get("node", {})
+                .get("comments", {})
+                .get("nodes", [])
+        )
+        for comment in nodes:
+            body = comment.get("body", "")
+            m = re.search(r'<!-- turing-raised-issue #(\d+) (https?://\S+) -->', body)
+            if m:
+                return {
+                    "exists": True,
+                    "issue_number": int(m.group(1)),
+                    "issue_url": m.group(2)
+                }
+        return {"exists": False, "issue_number": None, "issue_url": None}
+    except Exception as e:
+        logger.error(f"[check-discussion-issue] Error: {e}", exc_info=True)
+        return {"exists": False, "issue_number": None, "issue_url": None}
+
+
+# ---------------------------------------------------------------------------
+# /raise-issue-only — RW command: consolidate discussion → create issue → comment
+# ---------------------------------------------------------------------------
+
+class RaiseIssueOnlyPayload(BaseModel):
+    repository: str
+    discussion_number: int
+    discussion_title: str
+    discussion_body: str
+    discussion_node_id: str   # GraphQL node ID for posting the marker comment
+    discussion_url: Optional[str] = None
+    requester: str            # maintainer who typed RW
+
+@app.post("/raise-issue-only")
+def raise_issue_only(payload: RaiseIssueOnlyPayload):
+    """
+    RW command handler:
+    1. Consolidates discussion into clean issue spec (via Groq)
+    2. Creates GitHub issue via REST API
+    3. Posts <!-- turing-raised-issue #N URL --> marker comment on discussion
+    4. Returns issue_number and issue_url
+    """
+    github_token = os.getenv("GITHUB_TOKEN")
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "Turing-agent"
+    }
+    disc_url = payload.discussion_url or \
+        f"https://github.com/{payload.repository}/discussions/{payload.discussion_number}"
+
+    try:
+        # Step 1 — Consolidate discussion → clean issue spec
+        result = consolidate_discussion_to_issue(
+            repo=payload.repository,
+            discussion_number=payload.discussion_number,
+            discussion_title=payload.discussion_title,
+            discussion_body=payload.discussion_body,
+            approver=payload.requester,
+            discussion_url=disc_url,
+            token=github_token
+        )
+
+        # Step 2 — Create the GitHub issue via REST
+        issue_res = requests.post(
+            f"https://api.github.com/repos/{payload.repository}/issues",
+            headers=headers,
+            json={
+                "title": result["title"],
+                "body": result["body"],
+                "labels": result.get("labels", ["ready-for-work"])
+            },
+            timeout=20
+        )
+        if not issue_res.ok:
+            return JSONResponse(
+                status_code=500,
+                content={"status": "error", "message": issue_res.text}
+            )
+
+        issue = issue_res.json()
+        issue_number = issue["number"]
+        issue_url = issue["html_url"]
+
+        # Step 3 — Post marker comment on discussion (invisible HTML comment + visible message)
+        comment_body = (
+            f"<!-- turing-raised-issue #{issue_number} {issue_url} -->\n\n"
+            f"<!-- turing-bot -->\n\n"
+            f"### 📋 Issue Raised — Ready for Work\n\n"
+            f"Issue [#{issue_number}]({issue_url}) has been raised and is ready to be worked upon. "
+            f"The discussion has been consolidated into a structured issue specification.\n\n"
+            f"> To trigger an **automated PR** with a code fix, comment `approved`."
+        )
+
+        gql_mutation = """
+        mutation($id: ID!, $body: String!) {
+          addDiscussionComment(input: {discussionId: $id, body: $body}) {
+            comment { id url }
+          }
+        }
+        """
+        requests.post(
+            "https://api.github.com/graphql",
+            json={"query": gql_mutation, "variables": {
+                "id": payload.discussion_node_id,
+                "body": comment_body
+            }},
+            headers=headers, timeout=15
+        )
+
+        logger.info(
+            f"[raise-issue-only] Issue #{issue_number} created for "
+            f"discussion #{payload.discussion_number}"
+        )
+        return {
+            "status": "success",
+            "issue_number": issue_number,
+            "issue_url": issue_url,
+            "issue_title": result["title"],
+            "files_to_modify": result.get("files_to_modify", [])
+        }
+
+    except Exception as e:
+        logger.error(f"[raise-issue-only] Error: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+        )
+
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

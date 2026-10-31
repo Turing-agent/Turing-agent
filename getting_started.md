@@ -27,7 +27,7 @@ Before getting started, ensure you have installed and authenticated:
 ### 1.1. Clone & Install Dependencies
 ```bash
 git clone https://github.com/YASHK-arch/AgentX-TinyFish.git
-cd AgentX-TinyFish
+cd Turing-agent
 
 # Create and activate a virtual environment
 python -m venv venv
@@ -58,17 +58,37 @@ GITHUB_TOKEN=ghp_your_github_token_here
 PORT=8000
 ```
 
-### 1.3. Run the FastAPI Server & ngrok Tunnel
-Start the local server with hot reloading enabled:
+### 1.3. Local Development (FastAPI Server & ngrok)
+For rapid local testing and development with hot reloading:
 ```bash
 uvicorn main:app --reload --port 8000
 ```
 
-In a separate terminal, start the ngrok tunnel:
+In a separate terminal, start your ngrok tunnel:
 ```bash
-ngrok http 8000
+ngrok http --domain=pretended-extinct-antirust.ngrok-free.dev 8000
 ```
-Note your public forwarding URL (e.g., `https://your-domain.ngrok-free.dev`).
+
+---
+
+### 1.4. 🌐 24/7 Cloud Production Deployment (Zero Local Dependency)
+
+To make Turing-Agent run 100% autonomously in the cloud without requiring your computer to stay on:
+
+#### Deploy to Render (Recommended - Free / 1-Click):
+1. Push this repository to GitHub.
+2. Go to [Render Dashboard](https://dashboard.render.com/) -> **New** -> **Web Service**.
+3. Select your repository `Turing-agent` (or use Blueprint with `render.yaml`).
+4. Set Environment to **Docker** (it automatically uses the included `Dockerfile`).
+5. Configure Environment Variables:
+   - `GROQ_API_KEY`: Your Groq API key
+   - `TINYFISH_API_KEY`: Your TinyFish API key
+   - `GITHUB_TOKEN`: Your GitHub token
+   - `TINYFISH_MOCK`: `false`
+6. Copy your production URL (e.g., `https://turing-backend.onrender.com`).
+7. In your n8n workflow (`turing-agent-workflow.json`), replace `https://pretended-extinct-antirust.ngrok-free.dev` with your Render URL (or set `TURING_BACKEND_URL`).
+
+Now Turing functions 24/7 in the cloud across all repositories without any local machine running!
 
 ---
 
