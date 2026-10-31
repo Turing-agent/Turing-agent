@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "name": "reproduce-bug-report",
+  "owner": "karanmrn",
+  "repo": "karanagentskills",
+  "path": "skills/reproduce-bug-report",
+  "branch": "master",
+  "sha": "3857228de929fa3ed232cefd942eae3dc292c5fd",
+  "source": "manual"
+}

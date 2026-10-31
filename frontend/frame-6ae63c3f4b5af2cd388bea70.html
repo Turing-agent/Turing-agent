@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Screen</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Poppins:wght@100..900&family=Fira+Code:wght@300..700&family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link id="theme-fonts" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.iconify.design/iconify-icon/3.0.0/iconify-icon.min.js"></script>
+    <style type="text/tailwindcss">
+      @import "tailwindcss";
+      @theme inline {
+        --color-background: var(--background);
+        --color-foreground: var(--foreground);
+        --color-primary: var(--primary);
+        --color-primary-foreground: var(--primary-foreground);
+        --color-secondary: var(--secondary);
+        --color-secondary-foreground: var(--secondary-foreground);
+        --color-tertiary: var(--tertiary);
+        --color-tertiary-foreground: var(--tertiary-foreground);
+        --color-muted: var(--muted);
+        --color-muted-foreground: var(--muted-foreground);
+        --color-accent: var(--accent);
+        --color-accent-foreground: var(--accent-foreground);
+        --color-destructive: var(--destructive);
+        --color-destructive-foreground: var(--destructive-foreground);
+        --color-card: var(--card);
+        --color-card-foreground: var(--card-foreground);
+        --color-popover: var(--popover);
+        --color-popover-foreground: var(--popover-foreground);
+        --color-border: var(--border);
+        --color-input: var(--input);
+        --color-ring: var(--ring);
+        --radius-sm: calc(var(--radius) - 4px);
+        --radius-md: calc(var(--radius) - 2px);
+        --radius-lg: var(--radius);
+        --font-family-sans: var(--font-sans);
+        --font-family-heading: var(--font-heading);
+        --font-family-mono: var(--font-mono);
+        /* Tailwind v4's font namespace is --font-*, NOT --font-family-*.
+         *
+         * Without this line the font-heading utility does not exist at all,
+         * so every h1–h6 the design prompt mandates (font-heading) silently
+         * inherited the body's font-sans. A user could set --font-heading a
+         * dozen times, watch the tool report success, and never see the
+         * typeface change — the "font applied but not reflected" report.
+         *
+         * font-sans and font-mono are Tailwind built-ins and already read
+         * :root, which is why only headings were broken. The fallback chain
+         * keeps themes that never set a heading font rendering the body face
+         * instead of nothing. */
+        --font-heading: var(--font-heading, var(--font-sans, ui-sans-serif, system-ui, sans-serif));
+      }
+
+      /* Every filled surface carries its own text colour.
+       *
+       * Without this, <div class="bg-accent"> inherits --foreground from
+       * <html> — a colour chosen to contrast the PAGE, not the accent fill. On
+       * a dark theme with a bright accent that renders near-white text on
+       * near-white (or near-black on near-black): the invisible text users
+       * report. Pairing each fill with its own foreground makes the readable
+       * result the default instead of something the model has to remember.
+       *
+       * These sit in @layer base deliberately. Any explicit text-* utility is
+       * in @layer utilities and therefore still wins, so an intentional colour
+       * choice is never overridden. The neutral surfaces (background, muted)
+       * are left out: --foreground is already guaranteed readable on those, and
+       * forcing --muted-foreground would wash out headings in muted panels.
+       */
+      @layer base {
+        .bg-card { color: var(--card-foreground); }
+        .bg-popover { color: var(--popover-foreground, var(--card-foreground)); }
+        .bg-primary { color: var(--primary-foreground); }
+        .bg-secondary { color: var(--secondary-foreground); }
+        .bg-accent { color: var(--accent-foreground, var(--foreground)); }
+        .bg-tertiary { color: var(--tertiary-foreground, var(--primary-foreground)); }
+        .bg-destructive { color: var(--destructive-foreground, var(--primary-foreground)); }
+      }
+      :root {
+        --background: #101010;
+        --foreground: #979797;
+        --primary: #6366f1;
+        --primary-foreground: #080707;
+        --secondary: #181818;
+        --secondary-foreground: #979797;
+        --tertiary: #6366f1;
+        --muted: #181818;
+        --muted-foreground: #818080;
+        --accent: #424497;
+        --destructive: #ef4444;
+        --card: #141414;
+        --card-foreground: #979797;
+        --border: #404040;
+        --input: #404040;
+        --ring: #6366f1;
+        --radius: 8px;
+        --font-sans: Inter, sans-serif;
+        --font-heading: Inter, sans-serif;
+        --font-mono: JetBrains Mono, monospace;
+        --shadow-offset-x: 0;
+        --shadow-offset-y: 10;
+        --shadow-blur: 30;
+        --shadow-spread: -8;
+        --shadow-color: rgba(15, 23, 42, 0.12);
+        --accent-foreground: #BEBEBD;
+        --tertiary-foreground: #070707;
+        --destructive-foreground: #1D1C1C;
+        --primary-text: #686DF8;
+        --secondary-text: #7E7E7D;
+        --tertiary-text: #686DF8;
+        --accent-text: #6F76CE;
+        --destructive-text: #EF4444;
+        }
+    </style>
+    <style>
+      .brand-gradient { background-image: linear-gradient(135deg, var(--primary), var(--accent)); }
+      .shadow-theme {
+        box-shadow:
+          calc(var(--shadow-offset-x, 0) * 1px) calc(var(--shadow-offset-y, 10) * 1px)
+          calc(var(--shadow-blur, 30) * 1px) calc(var(--shadow-spread, -8) * 1px)
+          var(--shadow-color, rgba(15, 23, 42, 0.12));
+      }
+
+      /* Brand colours used as TEXT resolve to a legibility-adjusted variant.
+       *
+       * --primary and friends are tuned to look right as FILLS; painted as text
+       * on the page they are routinely too light — a #16A34A "+8.4%" on a white
+       * card measures 3.3:1. The --*-text tokens are the same hue and chroma
+       * with lightness nudged just far enough to clear AA on the page and card
+       * surfaces, so fills keep the exact brand colour while text becomes
+       * readable.
+       *
+       * This block is intentionally UNLAYERED: unlayered declarations outrank
+       * every cascade layer, so these beat Tailwind's own text-* utilities. The
+       * var() fallbacks leave documents that predate the derived tokens
+       * rendering exactly as before.
+       */
+      .text-primary { color: var(--primary-text, var(--primary)); }
+      .text-secondary { color: var(--secondary-text, var(--secondary)); }
+      .text-tertiary { color: var(--tertiary-text, var(--tertiary)); }
+      .text-accent { color: var(--accent-text, var(--accent)); }
+      .text-destructive { color: var(--destructive-text, var(--destructive)); }
+    </style>
+  </head>
+  <body>
+<div class="min-h-screen w-full bg-background flex flex-col relative">
+<section class="relative z-50 w-full bg-background text-primary-foreground">
+  <nav class="flex h-[84px] w-full items-center px-9">
+    <div class="hidden w-full grid-cols-[1fr_auto_1fr] items-center gap-4 lg:grid">
+      <div class="flex items-center justify-start">
+        <a href="/" class="inline-block">
+          <img class="h-auto w-[145px] max-w-full" src="https://www.openhands.dev/assets/webflow/brand/logo-on-dark.svg" alt="">
+        </a>
+      </div>
+
+      <div class="flex items-center justify-center">
+        <ul class="flex items-center justify-center gap-7 text-sm font-normal leading-5">
+          <li class="group relative">
+            <a href="/product" class="flex items-center justify-center gap-2 transition-colors hover:text-muted-foreground">
+              <span>Product</span>
+              <iconify-icon icon="lucide:chevron-down" class="text-xs"></iconify-icon>
+            </a>
+            <div class="pointer-events-none absolute left-0 top-full hidden origin-top-left scale-95 opacity-0">
+              <ul>
+                <li><a href="/product/canvas">Agent Canvas</a></li>
+                <li><a href="https://docs.openhands.dev/openhands/usage/cloud/openhands-cloud" target="_blank">Cloud</a></li>
+                <li><a href="/enterprise#control-plane">Agent Control Plane</a></li>
+                <li><a href="https://docs.openhands.dev/sdk" target="_blank">SDK</a></li>
+              </ul>
+            </div>
+          </li>
+          <li><a href="/enterprise" class="transition-colors hover:text-muted-foreground">Enterprise</a></li>
+          <li><a href="/pricing" class="transition-colors hover:text-muted-foreground">Pricing</a></li>
+          <li><a href="/community" class="transition-colors hover:text-muted-foreground">Community</a></li>
+          <li class="group relative">
+            <button type="button" class="flex items-center gap-1 transition-colors hover:text-muted-foreground">
+              <span>Resources</span>
+              <iconify-icon icon="lucide:chevron-down" class="text-xs"></iconify-icon>
+            </button>
+            <div class="pointer-events-none absolute left-0 top-full hidden origin-top scale-95 opacity-0">
+              <div>
+                <div class="font-mono">Learn</div>
+                <ul>
+                  <li><a href="https://docs.openhands.dev/" target="_blank">Docs</a></li>
+                  <li><a href="/manifesto">Manifesto</a></li>
+                  <li><a href="/blog">Blog</a></li>
+                  <li><a href="https://index.openhands.dev/home" target="_blank">Benchmarks</a></li>
+                  <li><a href="https://app.vanta.com/openhands.dev/trust/an0kgh9goh7xyqkhsb6tlp" target="_blank">Trust Center</a></li>
+                </ul>
+              </div>
+              <div>
+                <div class="font-mono">Company</div>
+                <ul>
+                  <li><a href="/press">Press</a></li>
+                  <li><a href="https://jobs.ashbyhq.com/OpenHands" target="_blank">Careers</a></li>
+                  <li><a href="/about">About</a></li>
+                  <li><a href="/contact">Contact</a></li>
+                </ul>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="flex items-center justify-end gap-5 self-center text-sm font-normal leading-5">
+        <a href="https://github.com/OpenHands/OpenHands" target="_blank" class="flex items-center gap-1 transition-opacity hover:opacity-80">
+          <iconify-icon icon="lucide:github" class="text-base"></iconify-icon>
+          <span>92.3K</span>
+        </a>
+        <a href="https://app.all-hands.dev/canvas" target="_blank" class="rounded-lg border border-border px-5 py-2 text-sm leading-5 transition-opacity hover:opacity-80">Access Cloud</a>
+        <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/setup" target="_blank" class="rounded-lg border border-border bg-muted px-5 py-2 text-sm leading-5 text-primary-foreground transition-opacity hover:opacity-80">Get OpenHands</a>
+      </div>
+    </div>
+
+    <div class="flex w-full items-center justify-between lg:hidden">
+      <a aria-label="Go to Home" href="/" class="inline-block">
+        <picture>
+          <img class="h-auto w-[145px]" src="https://www.openhands.dev/assets/webflow/brand/logo-on-dark.svg" alt="">
+        </picture>
+      </a>
+      <div class="flex items-center gap-3 text-sm">
+        <a href="https://github.com/OpenHands/OpenHands" target="_blank" class="flex items-center gap-1">
+          <iconify-icon icon="lucide:github"></iconify-icon><span>92.3K</span>
+        </a>
+        <a href="https://app.all-hands.dev/canvas" target="_blank" class="rounded-lg border border-border px-3 py-2">Access Cloud</a>
+        <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/setup" target="_blank" class="rounded-lg border border-border bg-muted px-3 py-2">Get OpenHands</a>
+        <button type="button" aria-label="Open Menu" class="flex flex-col text-sm">
+          <span>Menu</span><span class="hidden">Close</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+</section>
+<section class="relative w-full overflow-hidden bg-background text-primary-foreground">
+  <div class="pointer-events-none absolute inset-0 opacity-40">
+    <div class="absolute left-0 top-0 h-[660px] w-full bg-gradient-to-b from-muted/20 via-background to-background"></div>
+    <div class="absolute left-[40%] top-0 h-[620px] w-[620px] rounded-full bg-muted/20 blur-3xl"></div>
+  </div>
+
+  <div class="relative z-10 mx-auto w-full max-w-[1440px]">
+    <div class="mx-auto grid w-full grid-cols-1 items-center gap-8 px-6 pt-24 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.45fr)] lg:gap-4 lg:px-[60px]">
+      <div class="flex min-w-0 flex-col items-start gap-5 text-left">
+        <h1 id="hero-heading" class="max-w-[550px] text-5xl font-medium leading-[1.08] tracking-[-0.03em] text-primary-foreground lg:text-[56px]">
+          The open platform<span class="block">for <span class="text-foreground">agentic software development</span></span>
+        </h1>
+
+        <div class="flex w-full flex-col items-start gap-4">
+          <div class="flex flex-wrap items-center justify-start gap-2">
+            <button type="button" class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-sm">
+              <iconify-icon icon="lucide:monitor" class="text-base"></iconify-icon>
+              <span class="whitespace-nowrap">Get OpenHands</span>
+              <iconify-icon icon="lucide:chevron-down" class="text-sm"></iconify-icon>
+            </button>
+            <a href="/contact" class="inline-flex items-center px-2 py-2 text-sm font-medium leading-[18px] text-primary-foreground no-underline">Talk to us</a>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-start gap-3">
+            <div class="flex items-center" aria-label="Claude Code, Codex, Gemini CLI, OpenHands" role="img">
+              <span class="relative flex h-9 w-9 items-center justify-center rounded-[10px] border border-border bg-card text-card-foreground"><iconify-icon icon="lucide:asterisk" class="text-lg"></iconify-icon></span>
+              <span class="relative -ml-1 flex h-9 w-9 items-center justify-center rounded-[10px] border border-border bg-card text-card-foreground"><iconify-icon icon="simple-icons:openai" class="text-base"></iconify-icon></span>
+              <span class="relative -ml-1 flex h-9 w-9 items-center justify-center rounded-[10px] border border-border bg-card text-card-foreground"><iconify-icon icon="lucide:sparkles" class="text-base"></iconify-icon></span>
+              <span class="relative -ml-1 flex h-9 w-9 items-center justify-center rounded-[10px] border border-border bg-card text-card-foreground"><img src="https://www.openhands.dev/assets/webflow/brand/openhands-logo-mobile-mono.svg" alt="" class="h-3.5 w-auto"></span>
+            </div>
+            <p class="m-0 text-sm text-foreground">Bring your own agent</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="relative flex w-full min-w-0 flex-col overflow-visible">
+        <div class="relative ml-auto w-full max-w-[800px] overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          <div class="flex items-center border-b border-border px-2.5 py-1.5">
+            <div class="flex items-center gap-1">
+              <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+              <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+              <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+            </div>
+          </div>
+          <div class="flex aspect-video w-full overflow-hidden text-[8px] text-muted-foreground">
+            <aside class="flex w-[155px] shrink-0 flex-col border-r border-border bg-muted/30">
+              <div class="flex h-7 items-center px-2">
+                <img src="https://www.openhands.dev/assets/webflow/brand/openhands-logo-mobile-on-dark.svg" alt="" width="28" height="18" class="h-[14px] w-5 object-contain">
+              </div>
+              <div class="flex flex-col gap-px px-1">
+                <button type="button" class="flex h-6 items-center gap-1.5 rounded-md bg-primary/15 px-1.5 text-left text-[9px] text-primary-foreground"><iconify-icon icon="lucide:plus"></iconify-icon><span>New Chat</span></button>
+                <button type="button" class="flex h-6 items-center gap-1.5 rounded-md px-1.5 text-left text-[9px]"><iconify-icon icon="lucide:users"></iconify-icon><span class="text-foreground">Customize</span></button>
+                <button type="button" class="flex h-6 items-center gap-1.5 rounded-md px-1.5 text-left text-[9px]"><iconify-icon icon="lucide:settings"></iconify-icon><span class="text-foreground">Automate</span></button>
+              </div>
+              <div class="mt-2 px-2 text-[9px] font-medium text-foreground">Conversations</div>
+              <div class="space-y-1 px-2 pt-2 text-[8px]">
+                <div class="text-foreground">⌄ &nbsp; No repository</div>
+                <button type="button" class="block w-full truncate text-left text-foreground">• &nbsp; My New Projectjust now</button>
+                <div class="text-foreground">⌄ &nbsp; hello-world</div>
+                <button type="button" class="block w-full truncate text-left text-foreground">• &nbsp; Repo Testing2d ago</button>
+                <button type="button" class="block w-full truncate text-left text-foreground">• &nbsp; Automation: PR review</button>
+                <div class="text-foreground">⌄ &nbsp; earth</div>
+                <button type="button" class="block w-full truncate text-left text-foreground">• &nbsp; Another Project5d ago</button>
+                <button type="button" class="block w-full truncate text-left text-foreground">• &nbsp; Automation: Nightly Security Pass</button>
+              </div>
+              <div class="mt-auto border-t border-border px-2 py-2 text-[8px] text-foreground"><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-primary"></span>Local</div>
+            </aside>
+
+            <div class="min-w-0 flex-1 bg-background/60 px-8 pt-8">
+              <div class="mx-auto max-w-[390px]">
+                <div class="mb-3 text-center text-base font-medium text-primary-foreground">Let's Start Building!</div>
+                <div class="rounded-xl border border-border bg-card p-3 text-[10px] text-card-foreground">
+                  What do you want to build?
+                  <div class="mt-3 flex items-center justify-between"><span>Model</span><span>⌄</span><span>✦</span></div>
+                </div>
+                <div class="mt-3 flex gap-3 text-[9px]"><span class="text-foreground">⌘ Open Workspace</span><span class="text-foreground">⌘ Plugins</span></div>
+                <div class="mt-5 grid gap-3">
+                  <section class="rounded-lg border border-border bg-muted/30 p-3">
+                    <div class="mb-2 font-medium text-primary-foreground">Recommended automations</div>
+                    <div class="mb-2 text-foreground"><b class="text-primary-foreground">Slack channel monitor</b><br>Watch a channel for mentions and open a conversation with the message context.</div>
+                    <div class="mb-2 text-foreground"><b class="text-primary-foreground">Slack standup digest</b><br>Collect standup replies and post a weekday digest to the team channel.</div>
+                    <div class="text-foreground"><b class="text-primary-foreground">PR Review</b> on OpenReview newly opened pull requests and post findings as inline comments.</div>
+                  </section>
+                  <section class="rounded-lg border border-border bg-muted/30 p-3">
+                    <div class="mb-2 font-medium text-primary-foreground">Pinned automations</div>
+                    <div class="mb-2 text-foreground"><b class="text-primary-foreground">PR Triage Digest</b><br>Review newly opened pull requests in acme/frontend-app, identify risky changes, summarize likely impact, and prepare a concise digest with priority ordering for the engineering review channel.<br>acme/frontend-app · Weekdays at 09:00 · triage-fast · Successfuljust now</div>
+                    <div class="text-foreground"><b class="text-primary-foreground">Nightly Security Pass</b><br>Scan the acme/backend-api repository for known security vulnerabilities, outdated dependencies, and insecure code patterns. Produce a prioritized remediation summary.<br>acme/backend-api · Daily at 01:30 · security-careful · Runningjust now</div>
+                  </section>
+                  <section class="rounded-lg border border-border bg-muted/30 p-3 text-foreground"><b class="text-primary-foreground">Recent Automation Activity</b><br>AddNightly Security Pass · Daily at 01:30·just now<br>PR Triage Digest · Weekdays at 09:00·just now<br>Docs Sync on Push · Runs on every push·1d ago</section>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="sr-only">Agent Canvas preview: Home</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mx-auto w-full px-6 py-14 lg:px-[60px]">
+      <div class="flex w-full min-w-0 flex-col items-stretch gap-3 lg:flex-row lg:items-center lg:gap-5">
+        <div class="shrink-0 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-foreground">Trusted by engineers at</div>
+        <div class="min-w-0 flex-1 overflow-hidden">
+          <div class="flex items-center justify-between gap-7 opacity-60">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137f6974b71a1a4a932f82_TikTok_logo.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137f523b08f91a5aa905b9_Vmware.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137f2cb537758796a9dba1_Roche_Logo.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137f10c3975e28b3932320_Amazon_logo1.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/misc/69137efe8466ac374a9bc8a1_idlJcLIGV__17611861580951.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/misc/69137eedd7c29cc9046de43f_Group.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137ec5a6f77dd174e557ce_C3ai_logo1.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137eac8f27ca27f5e48420_Netflix_2015_logo1.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/misc/69137e8df2c028b9e1506ede_mastercard1.svg" alt="" class="h-5 w-14 object-contain">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137e783790933dd06f9d59_Red_Hat_Logo_20191.svg" alt="" class="hidden h-5 w-14 object-contain xl:block">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137e5fa006d963a1d1904d_mongodb-ar211.svg" alt="" class="hidden h-5 w-14 object-contain xl:block">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137e47b45195da10c50f49_apple-111.svg" alt="" class="hidden h-5 w-10 object-contain xl:block">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137e34e3a5ab71e37082a7_NVIDIA_logo1.svg" alt="" class="hidden h-5 w-14 object-contain xl:block">
+            <img src="https://www.openhands.dev/assets/webflow/logos/69137e199ce2cb594b0210ab_google-ar211.svg" alt="" class="hidden h-5 w-14 object-contain xl:block">
+            <img src="https://www.openhands.dev/assets/webflow/logos/690b9e5400fdae4c12eedd75_small-client-logo.svg" alt="" class="hidden h-5 w-14 object-contain xl:block">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mx-auto w-full px-6 pb-8 lg:px-[60px]">
+      <div class="max-w-[520px] text-left">
+        <h2 class="text-3xl font-medium leading-tight tracking-[-0.025em] text-primary-foreground">Build it once. Let agents keep it running.</h2>
+        <p class="mt-3 text-sm leading-5 text-foreground">Start with a template or build your own. Trigger workflows from GitHub, Slack, Jira, Linear, schedules, and supported integrations so engineering work keeps moving without someone manually starting every task.</p>
+        <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/prebuilt-automations" target="_blank" class="mt-6 inline-flex rounded-lg bg-primary px-4 py-3 text-sm font-medium text-primary-foreground no-underline">Explore automation templates</a>
+      </div>
+    </div>
+
+    <div class="w-full overflow-hidden pb-8 pt-5">
+      <div class="flex w-max gap-3 px-0">
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/webflow/icons/6908c8dd7162d7d09526a0fd_Slack_Technologies_Logo2.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Handle engineering requests in Slack</h3><p class="text-xs leading-snug text-card-foreground">Watch Slack channels for @openhands mentions, open a conversation with the message context, and reply when the agent finishes.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Team communication</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/webflow/icons/linear.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Triage every new Linear issue</h3><p class="text-xs leading-snug text-card-foreground">Classify new Linear issues, suggest labels, find duplicates, and ask clarifying questions before work starts.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Project management</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/webflow/icons/jira.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Triage incoming Jira incidents</h3><p class="text-xs leading-snug text-card-foreground">Watch for new bugs or incidents, gather logs and recent changes, suggest severity, and route the issue to the right owner.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Incident response</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/webflow/icons/github-brand.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Review every pull request</h3><p class="text-xs leading-snug text-card-foreground">Watch for a configurable label on pull requests, inspect full PR context, and post an AI review comment once per label event.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Code review</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <div class="flex items-center -space-x-2"><span class="flex h-9 w-9 items-center justify-center rounded-lg ring-2 ring-card"><img src="https://www.openhands.dev/assets/webflow/icons/notion.svg" alt="" class="h-5 w-5"></span><span class="flex h-9 w-9 items-center justify-center rounded-lg ring-2 ring-card"><img src="https://www.openhands.dev/assets/webflow/icons/atlassian.svg" alt="" class="h-5 w-5"></span></div>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Draft every incident retrospective</h3><p class="text-xs leading-snug text-card-foreground">Pull incident notes from Notion and Jira into a shared timeline with owners, decisions, and follow-up tasks.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Reliability</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/integrations/snyk.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Remediate security findings</h3><p class="text-xs leading-snug text-card-foreground">Review security alerts, validate the finding, update affected code, and open a pull request with the remediation.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">Security</span>
+        </article>
+        <article class="flex w-[300px] shrink-0 flex-col gap-2 rounded-2xl bg-card px-4 py-3.5 text-card-foreground shadow-sm">
+          <span class="flex h-9 w-9 items-center justify-center rounded-lg"><img src="https://www.openhands.dev/assets/integrations/github-actions.svg" alt="" class="h-5 w-5"></span>
+          <div class="flex flex-col gap-1"><h3 class="text-sm font-medium leading-snug">Fix CI failures automatically</h3><p class="text-xs leading-snug text-card-foreground">Detect failed workflows, inspect logs, identify the likely cause, and open a pull request with a proposed fix.</p></div>
+          <span class="inline-flex w-fit rounded-full bg-muted px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.06em] text-foreground">CI/CD</span>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-automation-factory-section" class="relative block h-[768px] bg-background py-24 text-primary-foreground">
+  <div class="home-hero-container mx-auto w-full">
+    <div class="home-automation-factory-panel relative mx-5 h-[576px] overflow-hidden rounded-lg bg-card text-card-foreground">
+      <div class="home-automation-factory-intro flex h-full">
+        <div class="home-automation-factory-copy ml-10 mt-14 max-w-[560px] text-left">
+          <p class="m-0 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-card-foreground">
+            <iconify-icon icon="lucide:git-branch" class="text-sm"></iconify-icon>
+            Automations
+          </p>
+          <h2 class="mt-5 max-w-[400px] text-[32px] font-medium leading-[1.18] tracking-tight text-card-foreground">
+            From signal to<br>
+            shipped change.
+          </h2>
+          <p class="mt-4 max-w-[370px] text-sm leading-[1.55] text-card-foreground">
+            Turn events from your engineering stack into end-to-end agent workflows. Trigger the work, let agents plan and execute, validate the result, ship the change, and monitor every step.
+          </p>
+        </div>
+
+        <div class="home-automation-factory-pipeline absolute left-1/2 top-[111px] h-[380px] w-[430px] -translate-x-[5%]" aria-label="Automation pipeline stages">
+          <div class="home-automation-factory-pipeline__ring relative h-full w-full">
+            <svg aria-hidden="true" viewBox="0 0 430 380" class="absolute inset-0 h-full w-full text-muted-foreground/50" fill="none">
+              <path d="M215 8 L345 83 L345 233 L215 308 L85 233 L85 83 Z" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4"></path>
+            </svg>
+
+            <ol class="home-automation-factory-pipeline__list m-0 list-none p-0">
+              <li class="home-automation-factory-stage absolute left-[193px] top-0 flex w-11 flex-col items-center" data-active="false">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-2.5 w-2.5 items-center justify-center rounded-full border border-card-foreground bg-card-foreground"></div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute top-[-61px] m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Signal</p>
+              </li>
+
+              <li class="home-automation-factory-stage absolute left-[323px] top-[75px] flex w-11 flex-col items-center" data-active="true">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-2.5 w-2.5 items-center justify-center rounded-full border border-card-foreground bg-card-foreground"></div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute left-9 top-[-39px] m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Plan</p>
+              </li>
+
+              <li class="home-automation-factory-stage absolute left-[323px] top-[225px] flex w-11 flex-col items-center" data-active="false">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-2.5 w-2.5 items-center justify-center rounded-full border border-card-foreground bg-card-foreground"></div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute left-9 top-5 m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Execute</p>
+              </li>
+
+              <li class="home-automation-factory-stage absolute left-[193px] top-[300px] flex w-11 flex-col items-center" data-active="false">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-2.5 w-2.5 items-center justify-center rounded-full border border-card-foreground bg-card-foreground"></div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute top-12 m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Validate</p>
+              </li>
+
+              <li class="home-automation-factory-stage absolute left-[63px] top-[225px] flex w-14 flex-col items-center" data-active="false">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-14 w-14 items-center justify-center rounded-full border border-card-foreground bg-card-foreground text-primary-foreground">
+                    <iconify-icon icon="lucide:git-branch" class="text-xl"></iconify-icon>
+                  </div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute right-16 top-5 m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Ship</p>
+              </li>
+
+              <li class="home-automation-factory-stage absolute left-[63px] top-[75px] flex w-11 flex-col items-center" data-active="false">
+                <div class="home-automation-factory-stage__anchor">
+                  <div class="home-automation-factory-stage__node flex h-2.5 w-2.5 items-center justify-center rounded-full border border-card-foreground bg-card-foreground"></div>
+                </div>
+                <p class="home-automation-factory-stage__label absolute right-9 top-[-39px] m-0 whitespace-nowrap text-sm font-medium text-card-foreground">Monitor</p>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-use-cases-section" class="bg-background py-20 pb-20 text-primary-foreground">
+  <div class="mx-auto w-full px-5">
+    <div class="ml-10 max-w-2xl">
+      <p class="m-0 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-foreground">
+        <iconify-icon icon="lucide:layout-grid" class="text-primary"></iconify-icon>
+        Use cases
+      </p>
+      <h2 class="mt-4 max-w-xl text-3xl font-medium leading-tight tracking-tight text-primary-foreground md:text-4xl">
+        Put the repetitive parts of the SDLC on autopilot.
+      </h2>
+      <p class="mt-3 max-w-2xl text-sm leading-6 text-foreground">
+        Use agents for the repetitive, high-volume work across the software lifecycle, while keeping engineers in control of review, approval, and merge.
+      </p>
+    </div>
+
+    <div class="mt-12 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">01</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Review PRs &amp; fix CI failures</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Review changes, catch issues, fix failed checks, and open follow-up PRs automatically.</p>
+      </a>
+
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">02</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Triage issues &amp; open draft PRs</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Turn incoming requests into scoped work, gather context, and open a draft PR with the right details attached.</p>
+      </a>
+
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">03</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Automate QA across the release cycle</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Use agents to run repeatable checks, investigate failures, and keep quality work moving from code change through release.</p>
+      </a>
+
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">04</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Investigate incidents &amp; propose fixes</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Pull together alerts, logs, and recent changes, then investigate the issue and propose a patch while humans handle judgment calls.</p>
+      </a>
+
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">05</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Keep docs &amp; codebase maps current</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Update documentation and system context as the code changes so knowledge doesn’t drift out of date.</p>
+      </a>
+
+      <a href="https://docs.openhands.dev" target="_blank" class="group flex h-40 flex-col rounded-lg border border-border bg-card p-6 no-underline">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <span class="font-mono text-xs uppercase tracking-widest text-card-foreground">06</span>
+          <iconify-icon icon="lucide:arrow-up-right" class="text-muted-foreground"></iconify-icon>
+        </div>
+        <h3 class="text-xl font-medium leading-tight text-primary-foreground">Automate recurring engineering chores</h3>
+        <p class="m-0 mt-3 text-sm leading-5 text-card-foreground">Handle dependency updates, QA sweeps, release notes, and other scheduled work even when laptops are closed.</p>
+      </a>
+    </div>
+  </div>
+</section>
+<section data-wf-el="section" data-testid="home-integrations-logo-marquee-section" class="relative h-[796px] overflow-hidden bg-background px-5 pt-40 pb-30 text-primary-foreground">
+  <div class="mx-auto w-full max-w-screen-2xl">
+    <div class="relative h-[518px] overflow-hidden rounded-lg border border-border bg-background">
+      <div class="absolute left-10 top-[70px] z-10 max-w-2xl text-left">
+        <h2 class="text-3xl font-medium tracking-tight text-primary-foreground">Integrate with the apps you rely upon</h2>
+        <p class="mt-3 max-w-3xl text-sm font-medium leading-6 text-foreground">Trigger work from GitHub, Slack, Jira, Linear, and more. Use MCP to connect internal tools, APIs, and data sources so agents can act across the full engineering workflow.</p>
+      </div>
+
+      <div class="absolute bottom-[-72px] left-1/2 flex -translate-x-1/2 items-end gap-2" data-testid="home-integrations-logo-marquee-rows">
+        <div class="flex translate-y-24 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-0">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-slack" aria-label="Slack"><img src="https://www.openhands.dev/assets/integrations/slack.svg" alt="" class="h-9 w-9"></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-github" aria-label="GitHub"><iconify-icon icon="simple-icons:github" class="text-3xl text-primary-foreground"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-linear" aria-label="Linear"><iconify-icon icon="simple-icons:linear" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-19 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-1">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-notion" aria-label="Notion"><iconify-icon icon="simple-icons:notion" class="text-3xl text-primary-foreground"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-atlassian" aria-label="Atlassian"><iconify-icon icon="simple-icons:atlassian" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-figma" aria-label="Figma"><iconify-icon icon="simple-icons:figma" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-14 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-2">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-supabase" aria-label="Supabase"><iconify-icon icon="simple-icons:supabase" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-stripe" aria-label="Stripe"><iconify-icon icon="simple-icons:stripe" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-sentry" aria-label="Sentry"><iconify-icon icon="simple-icons:sentry" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-9 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-3">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-posthog" aria-label="PostHog"><iconify-icon icon="simple-icons:posthog" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-datadog" aria-label="Datadog"><img src="https://www.openhands.dev/assets/integrations/datadog.svg" alt="" class="h-9 w-9"></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-airtable" aria-label="Airtable"><iconify-icon icon="simple-icons:airtable" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-5 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-4">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-asana" aria-label="Asana"><iconify-icon icon="simple-icons:asana" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-miro" aria-label="Miro"><iconify-icon icon="simple-icons:miro" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-mongodb" aria-label="MongoDB"><iconify-icon icon="simple-icons:mongodb" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex flex-col gap-2" data-testid="home-integrations-logo-marquee-row-5">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-redis" aria-label="Redis"><iconify-icon icon="simple-icons:redis" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-clickhouse" aria-label="ClickHouse"><iconify-icon icon="simple-icons:clickhouse" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-cloudflare" aria-label="Cloudflare"><iconify-icon icon="simple-icons:cloudflare" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex -translate-y-5 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-6">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-huggingface" aria-label="Hugging Face"><img alt="" class="h-9 w-9" src="https://www.openhands.dev/assets/integrations/huggingface.svg"></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-obsidian" aria-label="Obsidian"><iconify-icon icon="simple-icons:obsidian" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-quickbooks" aria-label="QuickBooks"><iconify-icon icon="simple-icons:quickbooks" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-5 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-7">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-elevenlabs" aria-label="ElevenLabs"><iconify-icon icon="simple-icons:elevenlabs" class="text-3xl text-primary-foreground"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-brave-search" aria-label="Brave Search"><iconify-icon icon="simple-icons:brave" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-kagi" aria-label="Kagi Search"><iconify-icon icon="lucide:search" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-9 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-8">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-paypal" aria-label="PayPal"><iconify-icon icon="simple-icons:paypal" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-resend" aria-label="Resend"><iconify-icon icon="simple-icons:resend" class="text-3xl text-primary-foreground"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-gitlab" aria-label="GitLab"><iconify-icon icon="simple-icons:gitlab" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-14 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-9">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-jira" aria-label="Jira"><iconify-icon icon="simple-icons:jira" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-vercel" aria-label="Vercel"><iconify-icon icon="simple-icons:vercel" class="text-3xl text-primary-foreground"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-netlify" aria-label="Netlify"><iconify-icon icon="simple-icons:netlify" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-19 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-10">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-snyk" aria-label="Snyk"><iconify-icon icon="simple-icons:snyk" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-github-actions" aria-label="GitHub Actions"><iconify-icon icon="simple-icons:githubactions" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-docker" aria-label="Docker"><iconify-icon icon="simple-icons:docker" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-24 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-11">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-kubernetes" aria-label="Kubernetes"><iconify-icon icon="simple-icons:kubernetes" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-aws" aria-label="AWS"><iconify-icon icon="simple-icons:amazonaws" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-googlecloud" aria-label="Google Cloud"><iconify-icon icon="simple-icons:googlecloud" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+        <div class="flex translate-y-28 flex-col gap-2" data-testid="home-integrations-logo-marquee-row-12">
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-azure" aria-label="Azure"><iconify-icon icon="simple-icons:microsoftazure" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-discord" aria-label="Discord"><iconify-icon icon="simple-icons:discord" class="text-3xl text-primary"></iconify-icon></div>
+          <div class="flex h-[88px] w-[88px] items-center justify-center rounded-xl border border-border bg-muted" data-testid="home-integration-logo-bitbucket" aria-label="Bitbucket"><iconify-icon icon="simple-icons:bitbucket" class="text-3xl text-primary"></iconify-icon></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-multi-backend-section" class="bg-background text-primary-foreground py-24">
+  <div class="mx-auto w-full max-w-screen-2xl px-15">
+    <div class="grid grid-cols-1 items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-16">
+      <div class="max-w-xl pt-0.5">
+        <p class="m-0 flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-foreground">
+          <iconify-icon icon="lucide:layers-2" class="text-primary"></iconify-icon>
+          Multi-backend
+        </p>
+        <h2 class="mt-4 text-3xl font-medium leading-10 tracking-tight text-primary-foreground md:text-4xl">
+          Your agents. Your models.<br>
+          Your runtime.
+        </h2>
+        <p class="mt-3 max-w-xl text-sm leading-5 text-foreground">
+          Standardize how agent workflows run without standardizing on one agent or model. Use Claude Code, Codex, Gemini CLI, OpenHands, or your own stack. OpenHands runs both closed models and open weights like Kimi, DeepSeek, and Qwen — locally, in the cloud, or inside your VPC.
+        </p>
+      </div>
+
+      <div class="overflow-hidden rounded-2xl border border-border bg-card">
+        <div class="flex items-center gap-2 border-b border-border bg-muted px-3 py-2" data-testid="home-multi-backend-window-chrome">
+          <div class="flex shrink-0 items-center gap-1">
+            <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+            <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+            <span class="h-2 w-2 rounded-full bg-muted-foreground"></span>
+          </div>
+          <span class="truncate font-mono text-[11px] uppercase tracking-widest text-foreground">Your stack</span>
+        </div>
+
+        <div class="space-y-5 p-5 md:p-6">
+          <div>
+            <p class="m-0 mb-3 text-xs text-card-foreground">Agent</p>
+            <div class="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-4">
+              <button type="button" class="min-w-0 bg-muted px-3 py-3 text-center">
+                <span class="flex items-center justify-center gap-2.5">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:sparkles"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Claude Code</span>
+                  </span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-center">
+                <span class="flex items-center justify-center gap-2.5">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:bot"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Codex</span>
+                  </span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-center">
+                <span class="flex items-center justify-center gap-2.5">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:sparkle"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Gemini CLI</span>
+                  </span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-center">
+                <span class="flex items-center justify-center gap-2.5">
+                  <span class="flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <img src="https://www.openhands.dev/assets/webflow/brand/openhands-logo-mobile-on-dark.svg" alt="" class="h-5 w-5 object-contain">
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">OpenHands</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div data-testid="home-multi-backend-models">
+            <p class="m-0 mb-3 text-xs text-card-foreground">Models</p>
+            <div class="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <button type="button" class="min-w-0 bg-muted px-3 py-3 text-center">
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-primary-foreground">Gemini 3.1 Pro</span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-center">
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-primary-foreground">Gemini 3 Flash</span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-center">
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-primary-foreground">Gemini 2.5 Pro</span>
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p class="m-0 mb-3 text-xs text-card-foreground">Runtime</p>
+            <div class="grid grid-cols-1 divide-y divide-border overflow-hidden rounded-lg border border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              <button type="button" class="min-w-0 bg-muted px-3 py-3 text-left">
+                <span class="flex items-start gap-2.5">
+                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:laptop"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Local VM</span>
+                    <span class="mt-1 block text-xs text-foreground">Laptop / desktop</span>
+                  </span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-left">
+                <span class="flex items-start gap-2.5">
+                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:cloud"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Cloud sandbox</span>
+                    <span class="mt-1 block text-xs text-card-foreground">Always-on</span>
+                  </span>
+                </span>
+              </button>
+              <button type="button" class="min-w-0 bg-card px-3 py-3 text-left">
+                <span class="flex items-start gap-2.5">
+                  <span class="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-primary-foreground">
+                    <iconify-icon icon="lucide:building-2"></iconify-icon>
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-medium text-primary-foreground">Enterprise VPC</span>
+                    <span class="mt-1 block text-xs text-card-foreground">Your network</span>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-enterprise-partners-section" class="relative h-[608px] bg-background px-5 py-20 text-primary-foreground">
+  <div class="mx-auto h-[448px] w-full max-w-[1400px]">
+    <div class="relative grid h-full grid-cols-[0.9fr_1.1fr] overflow-hidden rounded-lg bg-card px-10 py-14 text-card-foreground">
+      <div class="pointer-events-none absolute inset-0 overflow-hidden">
+        <div class="hero-pixel-blast h-full w-full"></div>
+      </div>
+
+      <div class="relative flex h-full flex-col">
+        <div>
+          <h2 class="max-w-[570px] text-[32px] font-medium leading-[1.15] tracking-[-0.035em]">
+            Built for the infrastructure you choose.
+          </h2>
+          <p class="mt-4 max-w-[560px] text-[14px] leading-[1.55] text-card-foreground">
+            OpenHands works with leading AI infrastructure providers to support agent workloads across the models, hardware, and deployment environments your organization already uses.
+          </p>
+        </div>
+
+        <div class="mt-auto flex items-center justify-center gap-[120px] pb-10">
+          <div class="flex flex-col items-center text-card-foreground">
+            <iconify-icon icon="simple-icons:nvidia" class="text-[72px] leading-none"></iconify-icon>
+            <span class="-mt-1 text-[26px] font-black leading-none tracking-[-0.08em]">NVIDIA</span>
+          </div>
+          <div class="flex items-center text-card-foreground">
+            <iconify-icon icon="simple-icons:amd" class="text-[164px] leading-none"></iconify-icon>
+          </div>
+        </div>
+      </div>
+
+      <div class="relative flex h-full items-center pl-10">
+        <div class="w-full max-w-[620px] text-left">
+          <h2 class="text-[20px] font-medium leading-[1.24] tracking-[-0.025em]">
+            “The integration of Lemonade Server with OpenHands reflects AMD’s commitment to open-source innovation and developer choice. This collaboration enables local coding agents that prioritize privacy, cost efficiency, and flexible model selection – while taking advantage of acceleration on Ryzen AI PCs. Together, we’re supporting a range of workflows and staying true to open-source values.”
+          </h2>
+
+          <div class="mt-6 flex flex-row items-center gap-4">
+            <div class="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-muted ring-1 ring-border">
+              <img src="https://www.openhands.dev/assets/webflow/testimonials/authors/amd.png" alt="" class="h-12 w-12 object-cover">
+            </div>
+            <div class="flex min-w-0 flex-col items-start">
+              <div class="text-[15px] font-medium leading-snug">Adrian Macias</div>
+              <div class="mt-0.5 text-[13px] leading-snug text-card-foreground">Director, Developer Acceleration at AMD</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-full-journey-section" class="bg-background text-primary-foreground py-20">
+  <div class="mx-auto w-full max-w-[1440px] px-6 lg:px-15">
+    <div class="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,2.15fr)] lg:gap-8">
+      <div class="flex min-w-0 flex-col items-start text-left">
+        <h2 class="max-w-sm text-3xl leading-[1.18] tracking-tight text-primary-foreground sm:text-4xl">
+          Start on your laptop. Scale to the cloud.
+        </h2>
+        <p class="mt-4 max-w-[320px] text-sm leading-[1.55] text-foreground">
+          Start locally with the agents and models you choose. Turn what works into shared automations, then scale successful workflows into production.
+        </p>
+      </div>
+
+      <div class="relative grid min-w-0 grid-cols-1 overflow-hidden rounded-lg border border-border md:grid-cols-3">
+        <article class="flex min-h-full flex-col border-b border-border p-6 md:border-b-0 md:p-7 lg:min-h-[470px]">
+          <p class="mb-5 flex items-center gap-2 font-mono text-xs font-normal uppercase tracking-[0.08em] text-foreground">
+            <iconify-icon icon="lucide:laptop" class="text-primary" aria-hidden="true"></iconify-icon>
+            Individual developer
+          </p>
+          <h3 class="text-2xl leading-[1.35] tracking-tight text-primary-foreground">
+            Start running agents your way.
+          </h3>
+          <div class="flex-1 pt-4">
+            <ul class="flex list-none flex-col gap-2 text-sm leading-[1.45] text-muted-foreground">
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Run locally against real code</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Bring Claude Code, Codex, OpenHands, or the agent you prefer</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Run multiple agents in parallel</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Turn useful tasks into your first automation</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Move execution to a VM when your laptop becomes the limit</li>
+            </ul>
+          </div>
+          <a href="https://github.com/OpenHands/OpenHands" target="_blank" aria-label="Download free" class="mt-6 inline-flex w-fit items-center rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground">
+            Download free
+          </a>
+        </article>
+
+        <article class="flex min-h-full flex-col border-b border-border p-6 md:border-b-0 md:border-l md:p-7 lg:min-h-[470px]">
+          <p class="mb-5 flex items-center gap-2 font-mono text-xs font-normal uppercase tracking-[0.08em] text-foreground">
+            <iconify-icon icon="lucide:users-round" class="text-primary" aria-hidden="true"></iconify-icon>
+            Team
+          </p>
+          <h3 class="text-2xl leading-[1.35] tracking-tight text-primary-foreground">
+            Turn agent wins into shared automations.
+          </h3>
+          <div class="flex-1 pt-4">
+            <ul class="flex list-none flex-col gap-2 text-sm leading-[1.45] text-muted-foreground">
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Share automations instead of rebuilding prompts</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Trigger work from GitHub, Slack, Jira, CI, or schedules</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Keep agents running when laptops are closed</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Run workflows across repositories and teams</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Standardize the patterns that actually work</li>
+            </ul>
+          </div>
+          <a href="https://app.all-hands.dev/" target="_blank" aria-label="Create account" class="mt-6 inline-flex w-fit items-center rounded-md border border-border px-4 py-2 text-sm text-primary-foreground">
+            Create account
+          </a>
+        </article>
+
+        <article class="flex min-h-full flex-col p-6 md:border-l md:p-7 lg:min-h-[470px]">
+          <p class="mb-5 flex items-center gap-2 font-mono text-xs font-normal uppercase tracking-[0.08em] text-foreground">
+            <iconify-icon icon="lucide:building-2" class="text-primary" aria-hidden="true"></iconify-icon>
+            Enterprise
+          </p>
+          <h3 class="text-2xl leading-[1.35] tracking-tight text-primary-foreground">
+            Run production agents with full control.
+          </h3>
+          <div class="flex-1 pt-4">
+            <ul class="flex list-none flex-col gap-2 text-sm leading-[1.45] text-muted-foreground">
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Deploy in your VPC or controlled environment</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Isolate agent execution in secure sandboxes</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Define who and what agents can access</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Audit every action, workflow, and user</li>
+              <li class="flex items-start gap-3 text-foreground"><span class="mt-[0.45rem] h-1.5 w-1.5 flex-shrink-0 bg-primary"></span>Manage usage, budgets, and organizational policies</li>
+            </ul>
+          </div>
+          <a href="/contact" aria-label="Talk to sales" class="mt-6 inline-flex w-fit items-center rounded-md border border-border px-4 py-2 text-sm text-primary-foreground">
+            Talk to sales
+          </a>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-testid="home-enterprise-security-section" class="h-[690px] bg-background py-20 text-primary-foreground">
+  <div class="mx-auto w-full max-w-[1440px] px-5">
+    <div class="h-[530px] overflow-hidden rounded-md border border-border bg-card">
+      <div class="grid h-full grid-cols-2">
+        <div class="relative z-10 flex flex-col items-start px-10 pt-14">
+          <p class="m-0 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-card-foreground">
+            <iconify-icon icon="lucide:shield" class="text-primary"></iconify-icon>
+            Agent Control Plane
+          </p>
+          <h2 class="mt-5 max-w-[42rem] text-3xl font-normal leading-tight tracking-tight text-primary-foreground">
+            Control how agents operate in production.
+          </h2>
+          <p class="mt-4 max-w-[36rem] text-sm leading-[1.55] text-card-foreground">
+            As agent usage spreads across teams, OpenHands gives platform and security teams centralized control over who can run agents, what they can access, where they execute, what they spend, and what they change.
+          </p>
+          <div class="relative mt-8">
+            <div class="rounded-md border border-border bg-background px-4 py-2.5 text-sm text-primary-foreground">
+              Learn about Enterprise
+            </div>
+            <a href="/enterprise" class="absolute inset-0 block" aria-label="Learn about Enterprise">
+              <span class="sr-only">Learn about Enterprise</span>
+            </a>
+          </div>
+        </div>
+        <div class="relative overflow-hidden" aria-hidden="true">
+          <svg viewBox="0 0 700 530" class="h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g class="text-muted-foreground opacity-60" stroke="currentColor" stroke-width="1.3">
+              <path d="M83 10L214 140"></path>
+              <path d="M430 0L416 40"></path>
+              <path d="M599 0L573 27"></path>
+              <path d="M670 156L594 185"></path>
+              <path d="M160 328L39 373"></path>
+              <path d="M510 510L454 355"></path>
+              <path d="M670 372L593 342"></path>
+              <path d="M215 225L275 286" opacity=".35"></path>
+              <path d="M274 286L223 342" opacity=".35"></path>
+            </g>
+            <g class="text-primary" stroke="currentColor" stroke-width="1.3">
+              <path d="M264 165L402 169L396 362L257 358L264 165Z"></path>
+              <path d="M264 245L400 250"></path>
+              <path d="M257 358L264 245"></path>
+              <path d="M396 362L400 250"></path>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="h-[960px] overflow-hidden bg-background py-10 text-primary-foreground">
+  <div class="mx-auto w-full max-w-[1316px]">
+    <div class="mb-12 text-left">
+      <h2 class="text-4xl font-normal tracking-tight">Developers love OpenHands</h2>
+      <p class="mt-2 text-xl font-medium text-foreground">Join millions of developers building for the agentic SDLC</p>
+    </div>
+    <p class="sr-only">‍</p>
+  </div>
+
+  <div class="space-y-6 overflow-hidden">
+    <div class="flex w-max gap-6">
+      <div class="flex gap-6">
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/misc/69a9a2ecdfdb5a94e70e9fb5_nacho-martinez-ricon.jpg" alt="Nacho Martínez Rincón" class="h-12 w-12 rounded-full object-cover">
+              <div>
+                <div class="text-sm font-normal">Nacho Martínez Rincón</div>
+                <div class="text-sm font-normal text-card-foreground">Data Scientist Advocate at Oracle</div>
+              </div>
+            </div>
+            <p class="text-base leading-[1.4]">The OpenHands SDK is one of the most complete SDKs for agent harness and agentic AI development - including enabling vibecoding with opensource models. Great reliability for tool calling through the Tool System - very dev friendly!</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c4f51d7fb8f0ec4da_hAlMtLep_400x400.jpeg" alt="Dan Kempe" class="h-12 w-12 rounded-full object-cover">
+              <div>
+                <div class="text-sm font-normal">Dan Kempe</div>
+                <div class="text-sm font-normal text-card-foreground">@danielkempe</div>
+              </div>
+            </div>
+            <p class="text-base leading-[1.4]">OpenHands raised $18.8M to build cloud coding agents that solve 87% of bug tickets same day.</p>
+            <p class="mt-4 text-base leading-[1.4]">This is what AI coding tools should be. Not another chat interface. Actual autonomous problem solving that ships to production.</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c29335a4e5f25171c_XdPDMFhM_400x400.jpeg" alt="Esteban Puerta" class="h-12 w-12 rounded-full object-cover">
+              <div>
+                <div class="text-sm font-normal">Esteban Puerta</div>
+                <div class="text-sm font-normal text-card-foreground">@Esteban_Puerta9</div>
+              </div>
+            </div>
+            <p class="text-base leading-[1.4]">At this point, there isn't much of a need to roll your own especially when claude code SDK and openhands sdk are offering nice API's to utilize them.</p>
+            <p class="mt-4 text-base leading-[1.4]">This is where it gets interesting.</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/misc/69a7ac3c1dc83f0947eb2469_Fisherman_Profile_Picture.jpg" alt="Fisherman" class="h-12 w-12 rounded-full object-cover">
+              <div>
+                <div class="text-sm font-normal">Fisherman</div>
+                <div class="text-sm font-normal text-card-foreground">@Rybens92</div>
+              </div>
+            </div>
+            <p class="text-base leading-[1.4]">Your agents are so underrated, but even though there are many benchmarks, which are testing agentic coding and are using your work as reference - OpenHands agent with tested model...</p>
+            <p class="mt-4 text-base leading-[1.4]">I just don't get why everybody is so silent about your work...</p>
+            <p class="text-base leading-[1.4]">‍</p>
+            <p class="mt-4 text-base leading-[1.4]">Reposting till people wake up.</p>
+          </div>
+        </article>
+      </div>
+      <div class="flex gap-6">
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/misc/69a9a2ecdfdb5a94e70e9fb5_nacho-martinez-ricon.jpg" alt="" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Nacho Martínez Rincón</div><div class="text-sm font-normal text-card-foreground">Data Scientist Advocate at Oracle</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">The OpenHands SDK is one of the most complete SDKs for agent harness and agentic AI development - including enabling vibecoding with opensource models. Great reliability for tool calling through the Tool System - very dev friendly!</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c4f51d7fb8f0ec4da_hAlMtLep_400x400.jpeg" alt="" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Dan Kempe</div><div class="text-sm font-normal text-card-foreground">@danielkempe</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">OpenHands raised $18.8M to build cloud coding agents that solve 87% of bug tickets same day.</p>
+            <p class="mt-4 text-base leading-[1.4]">This is what AI coding tools should be. Not another chat interface. Actual autonomous problem solving that ships to production.</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c29335a4e5f25171c_XdPDMFhM_400x400.jpeg" alt="" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Esteban Puerta</div><div class="text-sm font-normal text-card-foreground">@Esteban_Puerta9</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">At this point, there isn't much of a need to roll your own especially when claude code SDK and openhands sdk are offering nice API's to utilize them.</p>
+            <p class="mt-4 text-base leading-[1.4]">This is where it gets interesting.</p>
+          </div>
+        </article>
+        <article class="flex h-[363px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/misc/69a7ac3c1dc83f0947eb2469_Fisherman_Profile_Picture.jpg" alt="" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Fisherman</div><div class="text-sm font-normal text-card-foreground">@Rybens92</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">Your agents are so underrated, but even though there are many benchmarks, which are testing agentic coding and are using your work as reference - OpenHands agent with tested model...</p>
+            <p class="mt-4 text-base leading-[1.4]">I just don't get why everybody is so silent about your work...</p>
+            <p class="text-base leading-[1.4]">‍</p>
+            <p class="mt-4 text-base leading-[1.4]">Reposting till people wake up.</p>
+          </div>
+        </article>
+      </div>
+    </div>
+
+    <div class="flex w-max gap-6">
+      <div class="flex gap-6">
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69b02ad9ad98d51e745551de_user.svg" alt="Jingyi Zhao" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Jingyi Zhao</div><div class="text-sm font-normal text-card-foreground">Software Engineer at Walmart Global Tech</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">I love this project because it is the first of its kind in coding agent space and you have the freedom to configure your own way. It also integrates well with various ecosystems. I believe this project can go long!</p>
+          </div>
+        </article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c901a7c70a903b9c5_v7Pqyx4B_400x400.jpeg" alt="Leonardo Gonzalez" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Leonardo Gonzalez</div><div class="text-sm font-normal text-card-foreground">@archimagos</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">I love using autonomous agents like<strong>@allhands_ai</strong>OpenHands for 80% of the work (esp. backend), and then an interactive IDE like<strong>@windsurf</strong>or<strong>@zeddotdev</strong>for debugging, refinement, and UI work.</p>
+            <p class="mt-4 text-base leading-[1.4]">It saves tons of my time and saves a lot of money too with the right models/plans.</p>
+          </div>
+        </article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9ceee8b37f4ea0de9d_7pG3i1Kf_400x400.jpeg" alt="Wil - e/acc" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Wil - e/acc</div><div class="text-sm font-normal text-card-foreground">@wilfullyapt</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">I fvkn love vibe coding with OpenHands. It's not like your editor is doing things for you, it's like an idiot internal that literally knows all the book stuff. OpenHands commit, my tweaks, rinse and repeat. Phenomenal!!</p>
+          </div>
+        </article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg">
+          <div class="relative flex-1 p-6">
+            <div class="mb-4 flex items-center gap-3">
+              <img src="https://www.openhands.dev/assets/webflow/avatars/69783c9cc7c27cc7bedeac33_40ETg5qV_400x400.jpeg" alt="Christian Genco" class="h-12 w-12 rounded-full object-cover">
+              <div><div class="text-sm font-normal">Christian Genco</div><div class="text-sm font-normal text-card-foreground">@cgenco</div></div>
+            </div>
+            <p class="text-base leading-[1.4]">I haven't tried Devin yet but I freakin' love OpenHands. I prefer having more control over how it's working.</p>
+            <p class="mt-4 text-base leading-[1.4]">Also that general workflow is the future. Just opening GitHub issues and the AI figures it out and writes tests and then pushes a PR is magical.</p>
+          </div>
+        </article>
+      </div>
+      <div class="flex gap-6">
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg"><div class="relative flex-1 p-6"><div class="mb-4 flex items-center gap-3"><img src="https://www.openhands.dev/assets/webflow/avatars/69b02ad9ad98d51e745551de_user.svg" alt="" class="h-12 w-12 rounded-full object-cover"><div><div class="text-sm font-normal">Jingyi Zhao</div><div class="text-sm font-normal text-card-foreground">Software Engineer at Walmart Global Tech</div></div></div><p class="text-base leading-[1.4]">I love this project because it is the first of its kind in coding agent space and you have the freedom to configure your own way. It also integrates well with various ecosystems. I believe this project can go long!</p></div></article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg"><div class="relative flex-1 p-6"><div class="mb-4 flex items-center gap-3"><img src="https://www.openhands.dev/assets/webflow/avatars/69783c9c901a7c70a903b9c5_v7Pqyx4B_400x400.jpeg" alt="" class="h-12 w-12 rounded-full object-cover"><div><div class="text-sm font-normal">Leonardo Gonzalez</div><div class="text-sm font-normal text-card-foreground">@archimagos</div></div></div><p class="text-base leading-[1.4]">I love using autonomous agents like<strong>@allhands_ai</strong>OpenHands for 80% of the work (esp. backend), and then an interactive IDE like<strong>@windsurf</strong>or<strong>@zeddotdev</strong>for debugging, refinement, and UI work.</p><p class="mt-4 text-base leading-[1.4]">It saves tons of my time and saves a lot of money too with the right models/plans.</p></div></article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg"><div class="relative flex-1 p-6"><div class="mb-4 flex items-center gap-3"><img src="https://www.openhands.dev/assets/webflow/avatars/69783c9ceee8b37f4ea0de9d_7pG3i1Kf_400x400.jpeg" alt="" class="h-12 w-12 rounded-full object-cover"><div><div class="text-sm font-normal">Wil - e/acc</div><div class="text-sm font-normal text-card-foreground">@wilfullyapt</div></div></div><p class="text-base leading-[1.4]">I fvkn love vibe coding with OpenHands. It's not like your editor is doing things for you, it's like an idiot internal that literally knows all the book stuff. OpenHands commit, my tweaks, rinse and repeat. Phenomenal!!</p></div></article>
+        <article class="flex h-[285px] w-[380px] flex-col overflow-hidden rounded-lg bg-card text-card-foreground shadow-lg"><div class="relative flex-1 p-6"><div class="mb-4 flex items-center gap-3"><img src="https://www.openhands.dev/assets/webflow/avatars/69783c9cc7c27cc7bedeac33_40ETg5qV_400x400.jpeg" alt="" class="h-12 w-12 rounded-full object-cover"><div><div class="text-sm font-normal">Christian Genco</div><div class="text-sm font-normal text-card-foreground">@cgenco</div></div></div><p class="text-base leading-[1.4]">I haven't tried Devin yet but I freakin' love OpenHands. I prefer having more control over how it's working.</p><p class="mt-4 text-base leading-[1.4]">Also that general workflow is the future. Just opening GitHub issues and the AI figures it out and writes tests and then pushes a PR is magical.</p></div></article>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="h-[617px] bg-background px-15 pt-8 text-primary-foreground">
+  <div class="mx-auto w-full max-w-[1440px]">
+    <div class="flex flex-col gap-8 lg:flex-row lg:gap-0">
+      <div class="flex flex-col lg:basis-5/12">
+        <h2 class="text-3xl font-medium leading-none tracking-tight">FAQs</h2>
+        <p class="mt-4 max-w-[22rem] text-sm leading-6 text-foreground">Common questions about OpenHands, security, and how teams put agents to work.</p>
+        <div class="relative mt-5 w-fit">
+          <div class="rounded-md border border-border bg-card px-3.5 py-2.5 text-sm text-primary-foreground">Contact us</div>
+          <a href="/contact" aria-label="Contact us" class="absolute inset-0 block">
+            <span class="sr-only">Contact us</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="lg:flex-1">
+        <details class="group flex flex-col border-b border-border">
+          <summary class="flex h-[69px] cursor-pointer list-none items-center justify-between overflow-hidden">
+            <label class="pointer-events-none block cursor-default pr-3 text-xl leading-6 tracking-tight text-primary-foreground">What is OpenHands?</label>
+            <div class="flex shrink-0 overflow-hidden text-muted-foreground">
+              <iconify-icon icon="lucide:plus" width="22" height="22"></iconify-icon>
+            </div>
+          </summary>
+          <div class="hidden pb-5 group-open:block">
+            <p class="max-w-[820px] text-sm leading-6 text-foreground">OpenHands is an AI agent platform for software development that can execute real engineering work, not just suggest code. It runs autonomous agents that plan, write, and apply changes across your codebase, helping teams complete complex tasks end-to-end. Built on an open source foundation, it's designed for enterprise software development at scale.</p>
+          </div>
+        </details>
+
+        <details class="group flex flex-col border-b border-border">
+          <summary class="flex h-[69px] cursor-pointer list-none items-center justify-between overflow-hidden">
+            <label class="pointer-events-none block cursor-default pr-3 text-xl leading-6 tracking-tight text-primary-foreground">How is OpenHands different from AI coding tools like GitHub Copilot or ChatGPT?</label>
+            <div class="flex shrink-0 overflow-hidden text-muted-foreground">
+              <iconify-icon icon="lucide:plus" width="22" height="22"></iconify-icon>
+            </div>
+          </summary>
+          <div class="hidden pb-5 group-open:block">
+            <p class="max-w-[820px] text-sm leading-6 text-foreground">Instead of helping you write code faster, OpenHands helps you ship changes end-to-end. Tools such as GitHub Copilot or ChatGPT generate code suggestions. OpenHands runs agents that complete entire engineering tasks, taking actions across entire codebases, running tasks in parallel, and executing changes in real environments.</p>
+          </div>
+        </details>
+
+        <details class="group flex flex-col border-b border-border">
+          <summary class="flex h-[69px] cursor-pointer list-none items-center justify-between overflow-hidden">
+            <label class="pointer-events-none block cursor-default pr-3 text-xl leading-6 tracking-tight text-primary-foreground">Can OpenHands work with large or legacy codebases?</label>
+            <div class="flex shrink-0 overflow-hidden text-muted-foreground">
+              <iconify-icon icon="lucide:plus" width="22" height="22"></iconify-icon>
+            </div>
+          </summary>
+          <div class="hidden pb-5 group-open:block">
+            <p class="max-w-[820px] text-sm leading-6 text-foreground">Yes. OpenHands is specifically designed to handle large, complex, and legacy codebases. With its Large Codebase SDK, it maps dependencies across the system and orchestrates changes in the correct order, allowing multiple agents to safely work in parallel without conflicts.</p>
+          </div>
+        </details>
+
+        <details class="group flex flex-col border-b border-border">
+          <summary class="flex h-[69px] cursor-pointer list-none items-center justify-between overflow-hidden">
+            <label class="pointer-events-none block cursor-default pr-3 text-xl leading-6 tracking-tight text-primary-foreground">Is OpenHands secure for enterprise use?</label>
+            <div class="flex shrink-0 overflow-hidden text-muted-foreground">
+              <iconify-icon icon="lucide:plus" width="22" height="22"></iconify-icon>
+            </div>
+          </summary>
+          <div class="hidden pb-5 group-open:block">
+            <p class="max-w-[820px] text-sm leading-6 text-foreground">OpenHands runs in your environment, whether on-prem or private cloud, so your code never leaves your control. Since agents operate inside secure, isolated execution environments with full auditability, it is built for organizations with strict data security, compliance, and governance requirements.</p>
+          </div>
+        </details>
+
+        <details class="group flex flex-col border-b border-border">
+          <summary class="flex h-[69px] cursor-pointer list-none items-center justify-between overflow-hidden">
+            <label class="pointer-events-none block cursor-default pr-3 text-xl leading-6 tracking-tight text-primary-foreground">What types of teams use OpenHands?</label>
+            <div class="flex shrink-0 overflow-hidden text-muted-foreground">
+              <iconify-icon icon="lucide:plus" width="22" height="22"></iconify-icon>
+            </div>
+          </summary>
+          <div class="hidden pb-5 group-open:block">
+            <p class="max-w-[820px] text-sm leading-6 text-foreground">OpenHands is used by platform teams automating engineering workflows at scale, teams building internal developer platforms or AI-powered tooling, and enterprises managing large or legacy codebases and mission-critical software systems.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+</section>
+<section data-wf-el="section" data-testid="home-open-source-band" class="bg-background text-primary-foreground block h-[528px] py-20">
+  <div class="mx-auto w-full max-w-[1440px] px-5">
+    <div class="bg-card text-card-foreground min-h-[368px] rounded-lg px-10 py-12">
+      <div class="grid grid-cols-1 items-end gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-12">
+        <div class="max-w-[560px] text-left">
+          <h2 class="text-3xl font-medium tracking-tight">Open source at the core.</h2>
+          <p class="mt-3 text-sm leading-[1.55] text-card-foreground">Models change. Agents change. Requirements change. OpenHands gives you an inspectable, extensible foundation you can run locally, self-host, and carry into production without rebuilding around a proprietary platform.</p>
+          <div class="mt-8 flex flex-wrap items-center gap-3">
+            <div class="relative">
+              <div class="rounded-md bg-primary px-4 py-2.5 text-sm text-primary-foreground shadow-sm">Star on GitHub</div>
+              <a href="https://github.com/OpenHands/OpenHands" target="_blank" class="absolute inset-0 block" aria-label="Star on GitHub">
+                <span class="sr-only">Star on GitHub</span>
+              </a>
+            </div>
+            <div class="relative">
+              <div class="rounded-md border border-border bg-card px-4 py-2.5 text-sm text-card-foreground shadow-sm">Deploy self-hosted</div>
+              <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/setup" target="_blank" class="absolute inset-0 block" aria-label="Deploy self-hosted">
+                <span class="sr-only">Deploy self-hosted</span>
+              </a>
+            </div>
+            <div class="relative">
+              <div class="rounded-md border border-border bg-card px-4 py-2.5 text-sm text-card-foreground shadow-sm">Join the community</div>
+              <a href="/community" class="absolute inset-0 block" aria-label="Join the community">
+                <span class="sr-only">Join the community</span>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="grid min-h-[274px] grid-cols-3 overflow-hidden rounded-lg border border-border">
+          <div class="flex flex-col justify-center border-r border-border px-5">
+            <iconify-icon icon="lucide:star" class="mb-3 text-xl"></iconify-icon>
+            <p class="m-0 text-3xl font-medium tracking-tight">92.3K</p>
+            <p class="mt-2 text-xs text-card-foreground">GitHub stars</p>
+          </div>
+          <div class="flex flex-col justify-center border-r border-border px-5">
+            <iconify-icon icon="lucide:users" class="mb-3 text-xl"></iconify-icon>
+            <p class="m-0 text-3xl font-medium tracking-tight">590</p>
+            <p class="mt-2 text-xs text-card-foreground">Contributors</p>
+          </div>
+          <div class="flex flex-col justify-center px-5">
+            <iconify-icon icon="lucide:scale" class="mb-3 text-xl"></iconify-icon>
+            <p class="m-0 text-3xl font-medium tracking-tight">MIT</p>
+            <p class="mt-2 text-xs text-card-foreground">Core license</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="relative h-[936px] overflow-hidden bg-muted px-6 py-20 text-center text-primary-foreground">
+  <div class="absolute inset-0 overflow-hidden bg-muted" aria-hidden="true">
+    <div class="h-full w-full overflow-hidden">
+      <div class="relative h-full w-full"></div>
+    </div>
+  </div>
+
+  <div class="relative z-10 mx-auto max-w-7xl">
+    <div class="mx-auto flex max-w-4xl flex-col items-center">
+      <div class="max-w-4xl text-4xl font-normal leading-[1.08] tracking-tight md:text-5xl">
+        Building the open standard for autonomous software development.
+      </div>
+
+      <p class="mt-5 max-w-4xl text-lg font-medium leading-6 text-foreground">
+        OpenHands is the foundation for secure, transparent, model-agnostic coding agents - empowering every software team to build faster with full control.
+      </p>
+
+      <div class="mb-12 mt-12 flex flex-wrap items-center justify-center gap-4">
+        <div class="relative rounded-lg bg-primary px-4 py-3 text-sm leading-none text-primary-foreground shadow-sm">
+          <div>Join The Community</div>
+          <a href="/community" class="absolute inset-0 block" aria-label="Join The Community">
+            <span class="sr-only">Join The Community</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-48">
+      <div class="relative mx-auto max-w-7xl">
+        <div class="flex flex-wrap justify-center">
+          <div class="flex max-w-2xl flex-col">
+            <div class="flex flex-wrap justify-center">
+              <div class="flex items-center justify-center">
+                <img class="w-[610px] max-w-full invert" src="https://www.openhands.dev/assets/webflow/backgrounds/openhands_logo_black.svg" alt="">
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-10 flex max-w-2xl flex-col">
+            <div class="flex flex-wrap items-center justify-center gap-4 text-center font-mono text-sm text-primary-foreground">
+              <div><span>©<span>2026</span>OpenHands - All rights reserved</span></div>
+              <a class="transition-colors hover:text-muted-foreground" href="/privacy">Privacy Policy</a>
+              <a class="transition-colors hover:text-muted-foreground" href="/contact">Contact</a>
+            </div>
+
+            <div class="mt-8 flex flex-wrap justify-center">
+              <div class="flex flex-wrap justify-center gap-8">
+                <a href="/joinslack" aria-label="Join Slack" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent transition-all duration-200 hover:border-border hover:bg-card">
+                  <img class="h-4 w-4 invert" src="https://www.openhands.dev/assets/webflow/misc/6908d21b2270590dedae7f30_Frame48095725.svg" alt="">
+                </a>
+                <a href="https://x.com/OpenHandsDev" target="_blank" aria-label="X" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent transition-all duration-200 hover:border-border hover:bg-card">
+                  <img class="h-4 w-4 invert" src="https://www.openhands.dev/assets/webflow/misc/6908d21bd2a1305f4f77161b_Frame48095723.svg" alt="">
+                </a>
+                <a href="https://github.com/OpenHands/OpenHands" target="_blank" aria-label="GitHub" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent transition-all duration-200 hover:border-border hover:bg-card">
+                  <img class="h-4 w-4 invert" src="https://www.openhands.dev/assets/webflow/misc/6908d21a36dee3e7147b3d21_Frame48095724.svg" alt="">
+                </a>
+                <a href="https://www.linkedin.com/company/103318432/" target="_blank" aria-label="LinkedIn" class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-transparent transition-all duration-200 hover:border-border hover:bg-card">
+                  <img class="h-4 w-4 invert" src="https://www.openhands.dev/assets/webflow/misc/openhands-footer-linkedin.svg" alt="">
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</div>
+</body></html>
