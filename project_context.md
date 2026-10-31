@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-**Turing-Agent** (powered by **TinyFish**) is an autonomous GitHub QA maintainer, code repair agent, and repository intelligence system. It acts as an autonomous collaborator for open-source repositories (specifically demonstrated on [`YASHK-arch/RepoOwl-extension`](https://github.com/YASHK-arch/RepoOwl-extension)).
+**Turing-Agent** (powered by **TinyFish**) is an autonomous GitHub QA maintainer, code repair agent, and repository intelligence system. It acts as an autonomous collaborator for open-source repositories (specifically demonstrated on [`Turing-agent/Turing-agent`](https://github.com/Turing-agent/Turing-agent)).
 
 Operating via **GitHub Webhooks**, an **n8n Orchestration Pipeline**, and a **FastAPI backend** (`main.py`), Turing-Agent automates the entire lifecycle of bug management:
 1. **Instant Acknowledgment**: Reacts with `EYES` (`👀`) on new discussion posts immediately.
@@ -18,7 +18,7 @@ Operating via **GitHub Webhooks**, an **n8n Orchestration Pipeline**, and a **Fa
 
 ```mermaid
 flowchart TD
-    subgraph GitHub ["GitHub Platform (YASHK-arch/RepoOwl-extension)"]
+    subgraph GitHub ["GitHub Platform (Turing-agent/Turing-agent)"]
         A1[New Discussion Opened]
         A2[Comment: @Turing mention]
         A3[Comment: Maintainer 'approved']
@@ -282,7 +282,7 @@ Accepts all pending GitHub collaborator invitations for the bot.
   {
     "status": "success",
     "accepted_count": 1,
-    "repositories": ["YASHK-arch/RepoOwl-extension"],
+    "repositories": ["Turing-agent/Turing-agent"],
     "message": "Turing-agent accepted 1 collaborator invitation(s) successfully!"
   }
   ```

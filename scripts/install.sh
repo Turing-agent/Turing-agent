@@ -3,9 +3,9 @@
 # Turing-Agent 1-Command Universal Repository Installer (Bash / Linux / macOS)
 # ==============================================================================
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.sh | bash
 # Or specify a repository:
-#   curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash -s -- owner/repo
+#   curl -fsSL https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.sh | bash -s -- owner/repo
 # ==============================================================================
 
 set -e

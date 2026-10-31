@@ -516,7 +516,7 @@ def dispatch_turing_chat(
     discussion_body: str,
     comment_body: str,
     comment_author: str,
-    repository: str = "YASHK-arch/RepoOwl-extension",
+    repository: str = "Turing-agent/Turing-agent",
     discussion_url: Optional[str] = None,
     live_url: Optional[str] = None,
     tinyfish_api_key: Optional[str] = None,

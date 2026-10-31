@@ -4,7 +4,7 @@ Autonomous GitHub QA Agent - Turing-agent / TinyFish
 
 Features:
 - Programmatic container lifecycle management using the Python docker SDK.
-- Clones target source code from https://github.com/YASHK-arch/RepoOwl-extension.git.
+- Clones target source code from https://github.com/Turing-agent/Turing-agent.git.
 - Binds source code, installs dependencies, and allocates ephemeral ports (8100-8199).
 - Resilient fallback execution for environments where Docker daemon is inactive/unreachable.
 - Complete teardown and TTL cleanup.
@@ -21,7 +21,7 @@ from typing import Optional, Dict, Any, List
 logger = logging.getLogger("tinyfish.docker")
 logging.basicConfig(level=logging.INFO)
 
-TARGET_REPO_URL = "https://github.com/YASHK-arch/RepoOwl-extension.git"
+TARGET_REPO_URL = "https://github.com/Turing-agent/Turing-agent.git"
 DEFAULT_IMAGE = "node:20-alpine"
 
 

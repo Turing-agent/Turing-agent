@@ -355,7 +355,7 @@
         "repository": {
           "__rl": true,
           "mode": "name",
-          "value": "RepoOwl-extension"
+          "value": "Turing-agent"
         },
         "events": [
           "*"

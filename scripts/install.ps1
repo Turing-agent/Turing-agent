@@ -12,10 +12,10 @@
 
 .EXAMPLE
     # Run directly from the web inside any local repository:
-    irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.ps1 | iex
 
     # Or specify a remote repository:
-    irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1 | iex -Repo "owner/repo"
+    irm https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.ps1 | iex -Repo "owner/repo"
 #>
 
 param (

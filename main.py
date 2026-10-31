@@ -140,7 +140,7 @@ def generate_markdown_report(
 
 > **Autonomous Agent**: TinyFish / Turing-agent  
 > **Investigation Target**: `{plan.discussion_title}`  
-> **Target Repo**: `https://github.com/YASHK-arch/RepoOwl-extension.git`  
+> **Target Repo**: `https://github.com/Turing-agent/Turing-agent.git`  
 > **Verdict Confidence**: **{int(root_cause.confidence * 100)}%**
 
 ---
@@ -402,7 +402,7 @@ class ResolveIssuePayload(BaseModel):
     issue_title: str = Field(..., description="GitHub issue title")
     issue_body: str = Field(..., description="GitHub issue body (full description)")
     issue_number: int = Field(..., description="GitHub issue number")
-    repo_full_name: str = Field(..., description="owner/repo, e.g. YASHK-arch/RepoOwl-extension")
+    repo_full_name: str = Field(..., description="owner/repo, e.g. Turing-agent/Turing-agent")
     base_tree_sha: str = Field(..., description="SHA of the base git tree to build changes on")
     base_commit_sha: Optional[str] = Field(None, description="SHA of the base commit to parent the new commit")
     author: Optional[str] = Field("contributor", description="Author username for co-attribution")
@@ -416,7 +416,7 @@ class ResolveIssuePayload(BaseModel):
 
 class ConsolidateDiscussionPayload(BaseModel):
     """Payload to consolidate an approved discussion into a clean, structured GitHub Issue."""
-    repository: str = Field(..., description="owner/repo, e.g. YASHK-arch/Turing-agent")
+    repository: str = Field(..., description="owner/repo, e.g. Turing-agent/Turing-agent")
     discussion_number: int = Field(..., description="Discussion number")
     discussion_title: str = Field(..., description="GitHub discussion title")
     discussion_body: str = Field(..., description="GitHub discussion description body")
@@ -952,7 +952,7 @@ def _generate_contribution_setup_fix(existing_readme: str = "") -> list[FileChan
         "blank_issues_enabled: false\n"
         "contact_links:\n"
         "  - name: GitHub Discussions\n"
-        "    url: https://github.com/YASHK-arch/Turing-agent/discussions\n"
+        "    url: https://github.com/Turing-agent/Turing-agent/discussions\n"
         "    about: Community questions and collaborative brainstorming\n"
     )
     changes.append(FileChange(path=".github/ISSUE_TEMPLATE/config.yml", content=config_yml))
@@ -1364,7 +1364,7 @@ class TriageDiscussionPayload(BaseModel):
     discussion_number: Optional[Any] = Field(None, description="Discussion number")
     discussion_url: Optional[str] = Field(None, description="GitHub discussion URL")
     author: Optional[str] = Field("contributor", description="Author username")
-    repository: Optional[str] = Field("YASHK-arch/RepoOwl-extension", description="Full repo name owner/repo")
+    repository: Optional[str] = Field("Turing-agent/Turing-agent", description="Full repo name owner/repo")
 
 
 # Concurrency Lock & Rate Limit Safety Pacing
@@ -1398,7 +1398,7 @@ def triage_discussion(payload: TriageDiscussionPayload):
             discussion_title=payload.discussion_title,
             discussion_body=payload.discussion_body,
             author=payload.author or "contributor",
-            repo=payload.repository or "YASHK-arch/RepoOwl-extension"
+            repo=payload.repository or "Turing-agent/Turing-agent"
         )
 
         # Step 2: TinyFish issue scraping & component correlation
@@ -1406,14 +1406,14 @@ def triage_discussion(payload: TriageDiscussionPayload):
         scraped_issues = []
         if tinyfish_key:
             scraped_issues = scrape_repository_issues_and_discussions(
-                repo=payload.repository or "YASHK-arch/RepoOwl-extension",
+                repo=payload.repository or "Turing-agent/Turing-agent",
                 api_key=tinyfish_key,
                 max_issues_to_inspect=3
             )
 
         # Step 3: Produce TinyFish correlation report
         correlation_report = generate_tinyfish_correlation_report(
-            repo=payload.repository or "YASHK-arch/RepoOwl-extension",
+            repo=payload.repository or "Turing-agent/Turing-agent",
             discussion_title=payload.discussion_title,
             discussion_body=payload.discussion_body,
             scraped_issues=scraped_issues
@@ -1449,7 +1449,7 @@ class ChatTuringPayload(BaseModel):
     discussion_url: Optional[str] = Field(None, description="Discussion URL")
     discussion_id: Optional[str] = Field(None, description="GraphQL node ID of discussion")
     comment_id: Optional[str] = Field(None, description="GraphQL node ID of comment")
-    repository: Optional[str] = Field("YASHK-arch/RepoOwl-extension", description="Repository full name")
+    repository: Optional[str] = Field("Turing-agent/Turing-agent", description="Repository full name")
     live_url: Optional[str] = Field(None, description="Optional live deployment URL")
 
 
@@ -1474,7 +1474,7 @@ def chat_turing(payload: ChatTuringPayload):
             discussion_body=payload.discussion_body,
             comment_body=payload.comment_body,
             comment_author=payload.comment_author,
-            repository=payload.repository or "YASHK-arch/RepoOwl-extension",
+            repository=payload.repository or "Turing-agent/Turing-agent",
             discussion_url=payload.discussion_url,
             live_url=payload.live_url,
             tinyfish_api_key=os.getenv("TINYFISH_API_KEY"),

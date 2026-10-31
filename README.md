@@ -74,7 +74,7 @@ The bundled `turing-agent-workflow.json` covers the **investigation → issue co
 ### Investigation pipeline (`POST /run-tinyfish`)
 
 1. **Plan:** Combine the discussion title/body with optional video frames. `OPENAI_API_KEY` and `VISION_MODEL_PROVIDER=openai` enable the OpenAI vision path; otherwise the code uses a deterministic, keyword-driven fallback.
-2. **Provision:** Clone `https://github.com/YASHK-arch/RepoOwl-extension.git` into a temporary directory, then attempt to launch a Docker container. If Docker fails, the code retains a temporary **workspace**, not a running local web server.
+2. **Provision:** Clone `https://github.com/Turing-agent/Turing-agent.git` into a temporary directory, then attempt to launch a Docker container. If Docker fails, the code retains a temporary **workspace**, not a running local web server.
 3. **Hunt:** Call TinyFish's remote agent for a publicly reachable URL when `TINYFISH_API_KEY` is available and `TINYFISH_MOCK=false`. Otherwise use the simulated path. Supplying `live_url` replaces the sandbox's target URL, but the clone/provisioning step still runs.
 4. **Analyze:** Scan a limited number of repository files and request an OpenAI diagnosis if configured, or use heuristic suggestions.
 5. **Report:** Return Markdown describing the plan, sandbox details, investigation result, and a suggested patch. The temporary sandbox is torn down after the request.

@@ -2,7 +2,7 @@
 
 /**
  * Turing-Agent 1-Command Universal Installer CLI
- * Usage: npx github:YASHK-arch/Turing-agent [owner/repo]
+ * Usage: npx github:Turing-agent/Turing-agent [owner/repo]
  */
 
 const { execSync } = require("child_process");
@@ -49,14 +49,14 @@ async function main() {
 
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
     console.log(`Usage:
-  npx github:YASHK-arch/Turing-agent [owner/repo]
+  npx github:Turing-agent/Turing-agent [owner/repo]
 
 Examples:
   # Inside your repository directory (auto-detects repo):
-  npx github:YASHK-arch/Turing-agent
+  npx github:Turing-agent/Turing-agent
 
   # For any specific remote repository:
-  npx github:YASHK-arch/Turing-agent my-org/my-project
+  npx github:Turing-agent/Turing-agent my-org/my-project
 `);
     process.exit(0);
   }

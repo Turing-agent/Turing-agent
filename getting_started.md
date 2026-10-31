@@ -26,7 +26,7 @@ Before getting started, ensure you have installed and authenticated:
 
 ### 1.1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/YASHK-arch/AgentX-TinyFish.git
+git clone https://github.com/Turing-agent/Turing-agent.git
 cd Turing-agent
 
 # Create and activate a virtual environment
@@ -112,17 +112,17 @@ Run this directly in your terminal inside your repository directory:
 
 #### 🪟 Windows PowerShell:
 ```powershell
-irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.ps1 | iex
 ```
 
 #### 🐧 Linux / 🍎 macOS (Bash / Zsh):
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.sh | bash
 ```
 
 > 💡 **Targeting a remote repo from anywhere?** You can pass the repository parameter:
-> - **PowerShell**: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.ps1))) -Repo "owner/repo"`
-> - **Bash**: `curl -fsSL https://raw.githubusercontent.com/YASHK-arch/Turing-agent/main/scripts/install.sh | bash -s -- owner/repo`
+> - **PowerShell**: `& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.ps1))) -Repo "owner/repo"`
+> - **Bash**: `curl -fsSL https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.sh | bash -s -- owner/repo`
 
 ---
 
@@ -132,10 +132,10 @@ If you have Node.js / npm installed, run the universal interactive CLI:
 
 ```bash
 # Inside your repository folder (auto-detects repo):
-npx github:YASHK-arch/Turing-agent
+npx github:Turing-agent/Turing-agent
 
 # Or specifying the target repository explicitly:
-npx github:YASHK-arch/Turing-agent owner/repo
+npx github:Turing-agent/Turing-agent owner/repo
 ```
 
 ---

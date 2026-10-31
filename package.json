@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/YASHK-arch/Turing-agent.git"
+    "url": "https://github.com/Turing-agent/Turing-agent.git"
   },
   "keywords": [
     "turing-agent",
@@ -19,6 +19,6 @@
     "code-repair",
     "triage"
   ],
-  "author": "YASHK-arch",
+  "author": "Turing-agent",
   "license": "MIT"
 }
