@@ -253,6 +253,11 @@
             "node": "Check Existing Issue (RW)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Acknowledge with Eyes Reaction",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -658,6 +663,19 @@
         "jsonBody": "={{ JSON.stringify({\n  repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  maintainer_login: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login\n}) }}",
         "options": {
           "timeout": 60000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
         }
       },
       "id": "node-consolidate-discussion",
@@ -875,7 +893,19 @@
         "options": {
           "timeout": 300000
         },
-        "sendHeaders": false
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        }
       },
       "id": "node-resolve-issue",
       "name": "Call Resolve Issue API",
@@ -926,6 +956,19 @@
         "jsonBody": "={{ JSON.stringify({ discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }) }}",
         "options": {
           "timeout": 300000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
         }
       },
       "id": "node-triage-discussion",
@@ -1088,7 +1131,20 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "url": "https://pretended-extinct-antirust.ngrok-free.dev/chat-turing"
+        "url": "https://pretended-extinct-antirust.ngrok-free.dev/chat-turing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        }
       },
       "retryOnFail": true,
       "maxTries": 3,
@@ -1143,6 +1199,19 @@
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
         "options": {
           "timeout": 15000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
         }
       },
       "retryOnFail": true,
@@ -1230,6 +1299,19 @@
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, requester: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login }) }}",
         "options": {
           "timeout": 120000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
         }
       },
       "retryOnFail": true,
@@ -1253,6 +1335,19 @@
         "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
         "options": {
           "timeout": 15000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
         }
       },
       "retryOnFail": true,
