@@ -13,3 +13,4 @@ temp/*
 !temp/.gitkeep
 node_modules/
 dist/
+!frontend/dist/
