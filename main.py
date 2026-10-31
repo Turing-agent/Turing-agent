@@ -14,8 +14,10 @@ import logging
 import traceback
 import threading
 from typing import Optional, Dict, Any, List, Union
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, status, Header
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -55,6 +57,7 @@ try:
         scrape_repository_issues_and_discussions,
         generate_tinyfish_correlation_report
     )
+    from tasks.culprit_analyzer import fetch_git_dag, investigate_culprit
     from tasks.discussion_consolidator import (
         consolidate_discussion_to_issue,
         patch_github_issue
@@ -72,6 +75,7 @@ except ImportError:
         hunt_and_capture,
         AgentHuntResult
     )
+    from culprit_analyzer import fetch_git_dag, investigate_culprit
     from analyzer import (
         analyze_root_cause,
         RootCauseAnalysisResult
@@ -97,6 +101,14 @@ app = FastAPI(
     title="TinyFish Autonomous QA Agent",
     description="Webhook receiver and autonomous investigation orchestrator for n8n pipeline",
     version="2.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -257,6 +269,21 @@ def read_root():
         "version": "2.0.0",
         "workflow": "Phase 2 Autonomous Investigation Pipeline"
     }
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def serve_dashboard():
+    """Serves the interactive Git Time-Series Regression Dashboard."""
+    dist_index = _ROOT_DIR / "frontend" / "dist" / "index.html"
+    if dist_index.exists():
+        return FileResponse(dist_index)
+    return HTMLResponse("<h2>Frontend building or not found. Run npm run build in frontend/</h2>")
+
+
+# Mount frontend static assets if built
+_dist_assets = _ROOT_DIR / "frontend" / "dist" / "assets"
+if _dist_assets.exists():
+    app.mount("/assets", StaticFiles(directory=str(_dist_assets)), name="frontend_assets")
 
 
 @app.api_route("/accept-turing-invite", methods=["GET", "POST"])
@@ -1717,6 +1744,89 @@ def raise_issue_only(payload: RaiseIssueOnlyPayload):
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
         )
+
+
+class InvestigateCulpritPayload(BaseModel):
+    repo: str = Field(..., description="Target repository full name (owner/repo)")
+    incident_title: str = Field(..., description="Issue or discussion title")
+    incident_body: Optional[str] = Field("", description="Issue or discussion body/description")
+    candidate_limit: Optional[int] = Field(15, description="Number of commits to analyze")
+
+
+@app.get("/api/git-dag")
+async def get_git_dag(
+    repo: str = "YASHK-arch/eventyay_Sandbox",
+    limit: int = 25,
+    authorization: Optional[str] = Header(None)
+):
+    """Fetches Git DAG with temporal defect incident pins."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1].strip()
+    return fetch_git_dag(repo=repo, token=token, limit=limit)
+
+
+@app.post("/api/investigate-culprit")
+async def post_investigate_culprit(
+    payload: InvestigateCulpritPayload,
+    authorization: Optional[str] = Header(None)
+):
+    """Investigates candidate commits to find the probable guilty regression commit."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1].strip()
+    return investigate_culprit(
+        repo=payload.repo,
+        incident_title=payload.incident_title,
+        incident_body=payload.incident_body or "",
+        token=token,
+        candidate_limit=payload.candidate_limit or 15
+    )
+
+
+@app.get("/api/user-repos")
+async def get_user_repos(authorization: Optional[str] = Header(None)):
+    """Returns repositories accessible to the user or popular defaults for instant exploration."""
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split("Bearer ")[1].strip()
+    token = token or os.getenv("GITHUB_TOKEN")
+    default_repos = [
+        {
+            "full_name": "YASHK-arch/eventyay_Sandbox",
+            "name": "eventyay_Sandbox",
+            "description": "Eventyay Open-Event sandbox with live discussions and test issues",
+            "stars": 12,
+            "private": False
+        },
+        {
+            "full_name": "Turing-agent/Turing-agent",
+            "name": "Turing-agent",
+            "description": "Autonomous GitHub QA Maintainer and Bug Investigator powered by TinyFish",
+            "stars": 48,
+            "private": False
+        }
+    ]
+    if not token:
+        return {"repos": default_repos}
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+    try:
+        res = requests.get("https://api.github.com/user/repos?per_page=30&sort=updated", headers=headers, timeout=12)
+        if res.ok and isinstance(res.json(), list):
+            repos = [
+                {
+                    "full_name": r["full_name"],
+                    "name": r["name"],
+                    "description": r.get("description") or "",
+                    "private": r.get("private", False),
+                    "stars": r.get("stargazers_count", 0)
+                }
+                for r in res.json()
+            ]
+            return {"repos": repos}
+    except Exception as e:
+        logger.warning(f"[user-repos] Failed to query user repos: {e}")
+    return {"repos": default_repos}
 
 
 if __name__ == "__main__":
