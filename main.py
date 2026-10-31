@@ -22,32 +22,69 @@ from dotenv import load_dotenv
 # Load local environment variables if available
 load_dotenv()
 
-# Import Phase 2 Agentic Workflow Modules
-from vision_module import (
-    analyze_video_and_discussion,
-    BugReproductionPlan
-)
-from docker_provisioner import (
-    provision_docker_sandbox,
-    SandboxEnvironment
-)
-from agent_runner import (
-    hunt_and_capture,
-    AgentHuntResult
-)
-from analyzer import (
-    analyze_root_cause,
-    RootCauseAnalysisResult
-)
-from tinyfish_correlator import (
-    generate_turing_validation,
-    scrape_repository_issues_and_discussions,
-    generate_tinyfish_correlation_report
-)
-from discussion_consolidator import (
-    consolidate_discussion_to_issue,
-    patch_github_issue
-)
+import sys
+from pathlib import Path
+
+# Ensure root and tasks/ directories are in sys.path
+_ROOT_DIR = Path(__file__).resolve().parent
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
+if str(_ROOT_DIR / "tasks") not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR / "tasks"))
+
+# Import Modular Agentic Task Capabilities
+try:
+    from tasks.vision_module import (
+        analyze_video_and_discussion,
+        BugReproductionPlan
+    )
+    from tasks.docker_provisioner import (
+        provision_docker_sandbox,
+        SandboxEnvironment
+    )
+    from tasks.agent_runner import (
+        hunt_and_capture,
+        AgentHuntResult
+    )
+    from tasks.analyzer import (
+        analyze_root_cause,
+        RootCauseAnalysisResult
+    )
+    from tasks.tinyfish_correlator import (
+        generate_turing_validation,
+        scrape_repository_issues_and_discussions,
+        generate_tinyfish_correlation_report
+    )
+    from tasks.discussion_consolidator import (
+        consolidate_discussion_to_issue,
+        patch_github_issue
+    )
+except ImportError:
+    from vision_module import (
+        analyze_video_and_discussion,
+        BugReproductionPlan
+    )
+    from docker_provisioner import (
+        provision_docker_sandbox,
+        SandboxEnvironment
+    )
+    from agent_runner import (
+        hunt_and_capture,
+        AgentHuntResult
+    )
+    from analyzer import (
+        analyze_root_cause,
+        RootCauseAnalysisResult
+    )
+    from tinyfish_correlator import (
+        generate_turing_validation,
+        scrape_repository_issues_and_discussions,
+        generate_tinyfish_correlation_report
+    )
+    from discussion_consolidator import (
+        consolidate_discussion_to_issue,
+        patch_github_issue
+    )
 
 # Configure logging
 logging.basicConfig(
@@ -1467,7 +1504,10 @@ def chat_turing(payload: ChatTuringPayload):
     """
     logger.info(f"[chat-turing] Processing comment from @{payload.comment_author}: '{payload.comment_body[:80]}'")
     try:
-        from turing_qa import dispatch_turing_chat
+        try:
+            from tasks.turing_qa import dispatch_turing_chat
+        except ImportError:
+            from turing_qa import dispatch_turing_chat
 
         result = dispatch_turing_chat(
             discussion_title=payload.discussion_title,

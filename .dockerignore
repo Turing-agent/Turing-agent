@@ -6,8 +6,9 @@ __pycache__
 *.pyc
 *.pyo
 *.pyd
+*.log
 .DS_Store
 .npmignore
 node_modules
 assets/
-
+temp/

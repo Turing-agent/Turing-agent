@@ -2,3 +2,12 @@
 .env.*
 !.env.example
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+uvicorn_*.log
+.DS_Store
+temp/*
+!temp/.gitignore
+!temp/.gitkeep

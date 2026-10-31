@@ -21,8 +21,12 @@ import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
-from vision_module import BugReproductionPlan
-from docker_provisioner import SandboxEnvironment
+try:
+    from tasks.vision_module import BugReproductionPlan
+    from tasks.docker_provisioner import SandboxEnvironment
+except ImportError:
+    from vision_module import BugReproductionPlan
+    from docker_provisioner import SandboxEnvironment
 
 logger = logging.getLogger("tinyfish.agent")
 logging.basicConfig(level=logging.INFO)

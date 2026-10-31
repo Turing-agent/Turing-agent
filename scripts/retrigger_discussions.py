@@ -23,16 +23,25 @@ if sys.platform == "win32":
     except Exception:
         pass
 
-# Ensure parent directory is on sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Ensure parent directory and tasks are on sys.path
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.join(_ROOT, "tasks"))
 
 load_dotenv()
 
-from tinyfish_correlator import (
-    generate_turing_validation,
-    scrape_repository_issues_and_discussions,
-    generate_tinyfish_correlation_report
-)
+try:
+    from tasks.tinyfish_correlator import (
+        generate_turing_validation,
+        scrape_repository_issues_and_discussions,
+        generate_tinyfish_correlation_report
+    )
+except ImportError:
+    from tinyfish_correlator import (
+        generate_turing_validation,
+        scrape_repository_issues_and_discussions,
+        generate_tinyfish_correlation_report
+    )
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 TINYFISH_API_KEY = os.getenv("TINYFISH_API_KEY", "")

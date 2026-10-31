@@ -16,8 +16,12 @@ import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
-from vision_module import BugReproductionPlan
-from agent_runner import AgentHuntResult
+try:
+    from tasks.vision_module import BugReproductionPlan
+    from tasks.agent_runner import AgentHuntResult
+except ImportError:
+    from vision_module import BugReproductionPlan
+    from agent_runner import AgentHuntResult
 
 logger = logging.getLogger("tinyfish.analyzer")
 logging.basicConfig(level=logging.INFO)

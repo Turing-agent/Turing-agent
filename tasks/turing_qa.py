@@ -168,7 +168,10 @@ def handle_find_related_issues(
     correlates components and conflicting changes, and returns a detailed technical answer.
     """
     logger.info(f"[FIND_RELATED_ISSUES] Scraping issues and PRs for repo {repo} via TinyFish...")
-    from tinyfish_correlator import scrape_repository_issues_and_discussions
+    try:
+        from tasks.tinyfish_correlator import scrape_repository_issues_and_discussions
+    except ImportError:
+        from tinyfish_correlator import scrape_repository_issues_and_discussions
 
     tf_key = tinyfish_api_key or os.getenv("TINYFISH_API_KEY", "")
     gh_token = github_token or os.getenv("GITHUB_TOKEN", "")
