@@ -4,4 +4,15 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'https://turing-agent-backend.onrender.com',
+        changeOrigin: true,
+        secure: false
+      }
+    }
+  }
 })

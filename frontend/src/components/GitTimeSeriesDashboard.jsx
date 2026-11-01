@@ -7,7 +7,11 @@ import {
   ChevronRight, Code2, Tag, Cpu, Check, AlertCircle, Copy
 } from 'lucide-react'
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || ''
+const PROD_BACKEND_URL = 'https://turing-agent-backend.onrender.com'
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 
+  (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port !== '8000'
+    ? PROD_BACKEND_URL
+    : '')
 
 export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding }) {
   const [selectedRepo, setSelectedRepo] = useState('YASHK-arch/eventyay_Sandbox')
@@ -28,7 +32,11 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
     async function loadRepos() {
       try {
         const headers = authState?.token ? { 'Authorization': `Bearer ${authState.token}` } : {}
-        const res = await fetch(`${BACKEND_URL}/api/user-repos`, { headers })
+        let res = await fetch(`${BACKEND_URL}/api/user-repos`, { headers })
+        let ct = res.headers.get('content-type') || ''
+        if (!ct.includes('application/json') && BACKEND_URL !== PROD_BACKEND_URL) {
+          res = await fetch(`${PROD_BACKEND_URL}/api/user-repos`, { headers })
+        }
         if (res.ok) {
           const data = await res.json()
           if (data.repos) setUserRepos(data.repos)
@@ -50,10 +58,27 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
 
     try {
       const headers = authState?.token ? { 'Authorization': `Bearer ${authState.token}` } : {}
-      const res = await fetch(`${BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=25`, { headers })
-      if (!res.ok) {
-        throw new Error(`Failed to load Git DAG (${res.status}): ${await res.text()}`)
+      let url = `${BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=25`
+      let res = await fetch(url, { headers })
+      let ct = res.headers.get('content-type') || ''
+
+      // If we received non-JSON (e.g. Vite SPA fallback on localhost), fallback to direct production backend
+      if (!ct.includes('application/json') && BACKEND_URL !== PROD_BACKEND_URL) {
+        console.warn('Local endpoint returned non-JSON. Retrying with production Render backend...')
+        url = `${PROD_BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=25`
+        res = await fetch(url, { headers })
+        ct = res.headers.get('content-type') || ''
       }
+
+      if (!res.ok) {
+        const errText = await res.text()
+        throw new Error(`Failed to load Git DAG (${res.status}): ${errText.slice(0, 150)}`)
+      }
+
+      if (!ct.includes('application/json')) {
+        throw new Error(`Server returned HTML instead of JSON. Ensure backend is running or proxy is active.`)
+      }
+
       const data = await res.json()
       if (data.error) {
         setDagError(data.error)
@@ -86,7 +111,8 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
         'Content-Type': 'application/json',
         ...(authState?.token ? { 'Authorization': `Bearer ${authState.token}` } : {})
       }
-      const res = await fetch(`${BACKEND_URL}/api/investigate-culprit`, {
+      let url = `${BACKEND_URL}/api/investigate-culprit`
+      let res = await fetch(url, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -96,6 +122,19 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
           candidate_limit: 15
         })
       })
+      let ct = res.headers.get('content-type') || ''
+      if (!ct.includes('application/json') && BACKEND_URL !== PROD_BACKEND_URL) {
+        res = await fetch(`${PROD_BACKEND_URL}/api/investigate-culprit`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            repo: selectedRepo,
+            incident_title: incident.title,
+            incident_body: incident.body || '',
+            candidate_limit: 15
+          })
+        })
+      }
 
       if (res.ok) {
         const result = await res.json()
