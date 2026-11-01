@@ -3,9 +3,9 @@
 <table>
   <tr>
     <td width="75%" valign="top">
-      <p><strong>GitHub issue triage, QA investigation, and AI-assisted code-fix backend</strong></p>
+      <p><strong>Autonomous GitHub QA maintainer, code repair agent, and repository intelligence system</strong></p>
       <p>
-        Turing-Agent is a Python/FastAPI service intended to work with GitHub and <a href="https://n8n.io/">n8n</a> to process bug reports, propose reproduction steps, correlate related issues, and suggest code changes. The repository includes a TinyFish-powered investigation path, Groq-powered discussion triage and fix generation, and an invitation-acceptance workflow for the <code>Turing-agent</code> GitHub account.
+        Turing-Agent is a Python/FastAPI service that integrates with <a href="https://n8n.io/">n8n</a>, <a href="https://github.com/">GitHub</a>, and <a href="https://www.atlassian.com/software/jira">Jira</a> to automate bug triage, cross-issue correlation, semantic regression detection, and AI-assisted code fixes. Powered by <strong>TinyFish</strong> web automation and <strong>Groq</strong> LLM inference.
       </p>
     </td>
     <td width="25%" align="center" valign="middle">
@@ -26,6 +26,8 @@
 - [Configuration](#configuration)
 - [API reference](#api-reference)
 - [n8n integration](#n8n-integration)
+- [Jira integration](#jira-integration)
+- [Git regression dashboard](#git-regression-dashboard)
 - [Collaborator invitation workflow](#collaborator-invitation-workflow)
 - [Current limitations](#current-limitations)
 - [Development and troubleshooting](#development-and-troubleshooting)
@@ -35,206 +37,295 @@
 
 ```mermaid
 flowchart TD
-    GH[GitHub Issue or Discussion] -->|GitHub webhook configured by maintainer| N[n8n]
-    N -->|POST /run-tinyfish| I[FastAPI: main.py]
-    I --> V[Video / discussion analysis]
-    V --> S[Clone repo and attempt Docker sandbox]
-    S --> H[TinyFish agent or simulated hunt]
-    H --> A[Source analysis / suggested patch]
-    A --> R[Markdown investigation report]
-    R --> N
-    N -->|Issue comment API in supplied workflow| GH
+    subgraph GitHub ["GitHub Platform"]
+        GH1[New Discussion Opened]
+        GH2[Comment: @Turing mention]
+        GH3[Comment: Maintainer 'approved']
+        GH4[Collaborator Invitation Sent]
+    end
 
-    N2[n8n or other caller] -->|POST /triage-discussion| T[Groq validation + optional TinyFish correlation]
-    N3[n8n or other caller] -->|POST /resolve-issue| F[GitHub source fetch + optional TinyFish + Groq file changes]
-    F --> X[Structured changes returned to caller]
-    X -.->|Additional automation required| PR[Commit, branch, pull request]
+    subgraph Jira ["Jira Software"]
+        J1[New Ticket Created]
+        J2[Comment: RW / approved / Hi Turing]
+    end
 
-    Owner[Repository owner] -->|Invite Turing-agent| G[GitHub]
-    Owner -->|Call invite webhook| NW[n8n invitation workflow]
-    NW -->|Fetch / accept invitations| G
+    subgraph n8n ["n8n Orchestration Engine"]
+        N[GitHub Trigger / Webhook Intake]
+        R{Route by Event Switch}
+        N --> R
+
+        R -->|New Bug Report| T1[POST /triage-discussion]
+        T1 --> T2[Post Validation + Correlation]
+
+        R -->|Turing Mention| C1[POST /chat-turing]
+        C1 --> C2[Post AI Reply]
+
+        R -->|Maintainer Approved| M1[Create Repository Issue]
+        M1 --> M2[POST /resolve-issue]
+        M2 --> M3[Open Pull Request]
+
+        R -->|RW Command| W1[POST /consolidate-discussion]
+        W1 --> W2[Patch GitHub Issue]
+    end
+
+    subgraph Backend ["FastAPI Webhook Server (main.py)"]
+        B1["/triage-discussion (tinyfish_correlator.py)"]
+        B2["/chat-turing (turing_qa.py)"]
+        B3["/resolve-issue (Groq LLM + Git API)"]
+        B4["/consolidate-discussion (discussion_consolidator.py)"]
+        B5["/jira/triage (jira_integration.py)"]
+        B6["/jira/comment (jira_integration.py)"]
+        B7["/api/git-dag (culprit_analyzer.py)"]
+        B8["/api/investigate-culprit (culprit_analyzer.py)"]
+    end
+
+    subgraph External ["External Services"]
+        TF["TinyFish Web Fetch & Agent API"]
+        GQ["Groq LLM"]
+        GH["GitHub REST & GraphQL API"]
+        JR["Jira REST API"]
+    end
+
+    subgraph Frontend ["React Dashboard"]
+        D1["GitTimeSeriesDashboard.jsx"]
+        D2["GitHubAuthModal.jsx"]
+    end
+
+    GH1 & GH2 & GH3 --> N
+    GH4 -.-> Backend
+    J1 --> B5
+    J2 --> B6
+
+    T1 --> B1
+    C1 --> B2
+    M2 --> B3
+    W1 --> B4
+
+    B1 --> TF & GQ
+    B2 --> TF & GQ
+    B3 --> GQ & GH
+    B4 --> GQ
+    B5 --> TF & GQ
+    B6 --> B2 & B4
+    B7 --> GH
+    B8 --> GQ
+
+    D1 --> B7 & B8
 ```
-
-The bundled `turing-agent-workflow.json` covers the **investigation → issue comment** route. The bundled invitation workflow handles **collaborator invitations**. The supplied n8n exports do **not** include a complete workflow that invokes `/triage-discussion` or turns `/resolve-issue` output into a GitHub commit and pull request.
 
 ## Features and modules
 
 | Component | Responsibility | File |
 | --- | --- | --- |
-| API orchestrator | FastAPI routes, investigation pipeline, triage, and fix-generation endpoints | `main.py` |
-| Video and text intake | Download optional video; sample up to 12 frames at roughly 1 fps; use OpenAI vision or keyword-based fallback to create a reproduction plan | `vision_module.py` |
-| Sandbox provisioning | Clone the configured RepoOwl repository; try a `node:20-alpine` Docker container; fall back to a temporary local directory | `docker_provisioner.py` |
-| Reproduction agent | Attempt a live TinyFish web-agent run when configured, otherwise produce a simulated investigation | `agent_runner.py` |
-| Root-cause suggestions | Inspect repository source and use OpenAI or predefined heuristics to propose an explanation and patch | `analyzer.py` |
-| Discussion correlation | Generate Groq-based validation comments and optionally fetch prior GitHub issues via TinyFish | `tinyfish_correlator.py` |
-| n8n investigation | Accept webhook payload, call backend, and post to GitHub's issue-comment endpoint | `turing-agent-workflow.json` |
-| n8n onboarding | Retrieve and accept pending repository collaborator invitations | `accept-turing-invite-workflow.json` |
-| Invite helpers | GitHub CLI and webhook helpers for Bash/Zsh and PowerShell | `scripts/invite_turing.sh`, `scripts/invite_turing.ps1` |
+| API orchestrator | FastAPI routes, all endpoints, Git operations | `main.py` |
+| Intent parser & QA | Groq intent classification, TinyFish investigation, related issues | `tasks/turing_qa.py` |
+| TinyFish correlator | Scrapes GitHub issues/discussions, cross-issue correlation | `tasks/tinyfish_correlator.py` |
+| Discussion consolidator | Synthesizes discussion threads into clean GitHub Issue specs | `tasks/discussion_consolidator.py` |
+| Jira integration | Jira queue scraping, internal notes, interactive commands | `tasks/jira_integration.py` |
+| Culprit analyzer | Git DAG construction, incident pinning, semantic regression detection | `tasks/culprit_analyzer.py` |
+| Agent runner | TinyFish browser automation, screenshot capture | `tasks/agent_runner.py` |
+| Root-cause analyzer | Source inspection, AST analysis, patch proposals | `tasks/analyzer.py` |
+| Sandbox provisioner | Docker container management, repo cloning | `tasks/docker_provisioner.py` |
+| Vision module | Video frame extraction, reproduction planning | `tasks/vision_module.py` |
+| React dashboard | Git DAG visualization, culprit investigation panel | `frontend/src/components/GitTimeSeriesDashboard.jsx` |
+| n8n GitHub workflow | GitHub webhook handling, routing, comment posting | `turing-agent-workflow.json` |
+| n8n invite workflow | Collaborator invitation acceptance | `accept-turing-invite-workflow.json` |
 
-### Investigation pipeline (`POST /run-tinyfish`)
+### Core workflows
 
-1. **Plan:** Combine the discussion title/body with optional video frames. `OPENAI_API_KEY` and `VISION_MODEL_PROVIDER=openai` enable the OpenAI vision path; otherwise the code uses a deterministic, keyword-driven fallback.
-2. **Provision:** Clone `https://github.com/Turing-agent/Turing-agent.git` into a temporary directory, then attempt to launch a Docker container. If Docker fails, the code retains a temporary **workspace**, not a running local web server.
-3. **Hunt:** Call TinyFish's remote agent for a publicly reachable URL when `TINYFISH_API_KEY` is available and `TINYFISH_MOCK=false`. Otherwise use the simulated path. Supplying `live_url` replaces the sandbox's target URL, but the clone/provisioning step still runs.
-4. **Analyze:** Scan a limited number of repository files and request an OpenAI diagnosis if configured, or use heuristic suggestions.
-5. **Report:** Return Markdown describing the plan, sandbox details, investigation result, and a suggested patch. The temporary sandbox is torn down after the request.
+#### 1. Discussion triage (`POST /triage-discussion`)
+- Generates immediate maintainer validation comment via Groq LLM
+- Scrapes repository issues/discussions via TinyFish Web Fetch API
+- Correlates related issues, PRs, and component impacts
+- Posts threaded TinyFish correlation report under validation comment
 
-### Issue resolution (`POST /resolve-issue`)
+#### 2. Intent-driven Q&A (`POST /chat-turing`)
+- Classifies comments into: `FIND_RELATED_ISSUES`, `REPRODUCE_BUG`, `ANALYZE_PROPOSAL`, `GENERAL_QA`
+- Handles bug reproduction via TinyFish browser automation with screenshots
+- Scrapes related issues and conflicting PRs
+- Analyzes contributor proposals for trade-offs and drawbacks
 
-For an approved GitHub issue, the service fetches the repository's recursive tree using GitHub's API, selects up to **15** small eligible source files, optionally inspects a live deployment with TinyFish, and asks Groq to return complete proposed file contents, a commit message, and a summary. The endpoint **does not modify GitHub files, create a branch, run tests, or open a pull request**.
+#### 3. Maintainer approval & PR resolution (`POST /resolve-issue`)
+- Creates GitHub issue with `ready-for-work` label
+- Posts real-time progress checklist in discussion
+- Fetches repository files in parallel (ThreadPoolExecutor)
+- Inspects live deployments via TinyFish Agent
+- Generates code fixes via Groq LLM
+- Commits changes via GitHub Git Data API with co-author credit
+- Opens Pull Request with rich description and TinyFish screenshots
 
-### Discussion triage (`POST /triage-discussion`)
+#### 4. Discussion consolidation (`POST /consolidate-discussion`)
+- Triggered by maintainer `RW` command
+- Fetches discussion thread comments
+- Synthesizes consensus into clean GitHub Issue spec via Groq
+- Patches existing issue with consolidated title and body
+- Enforces 2,500 character token safety limit
 
-Groq drafts a maintainer-style validation comment. If a TinyFish key is configured, the backend also attempts to inspect up to **three** previous repository issues and synthesize a correlation report. Without scraped issues, a fixed fallback correlation message is returned. These are **generated assessments**, not independently verified resolutions.
+#### 5. Jira integration
+- **Triage** (`POST /jira/triage`): Posts maintainer validation + TinyFish correlation as INTERNAL NOTE
+- **Comment handling** (`POST /jira/comment`): Processes `RW`, `approved`, and `Hi Turing` commands
+- Creates GitHub Issues with `source: Jira` label
+- Tracks source provenance via labels
+
+#### 6. Git regression intelligence
+- **Git DAG** (`GET /api/git-dag`): Fetches commit DAG with incidents pinned to timeline
+- **Culprit detection** (`POST /api/investigate-culprit`): Semantic regression analysis to identify guilty commit
+- Visualizes swimlane graph with authentic Git branch rendering
+- Maps issues/discussions to closest prior commit by timestamp
+- Syncs upstream issue metadata for mirrored issues
 
 ## Repository layout
 
 ```text
 .
 ├── .agents/
-│   └── mcp_config.json                 # n8n MCP endpoint configuration
-├── scripts/
-│   ├── invite_turing.sh                # Bash / Zsh invitation helper
-│   └── invite_turing.ps1               # PowerShell invitation helper
-├── main.py                             # FastAPI application and API routes
-├── vision_module.py                    # Video analysis and reproduction plan
-├── docker_provisioner.py               # Repository clone / sandbox lifecycle
-├── agent_runner.py                     # Live TinyFish or simulated execution
-├── analyzer.py                         # Source inspection and patch proposals
-├── tinyfish_correlator.py              # Groq validation and issue correlation
-├── turing-agent-workflow.json          # n8n issue investigation workflow
-├── accept-turing-invite-workflow.json   # n8n invitation workflow
-├── architecture.png                    # Conceptual architecture illustration
-├── payload_approved.json               # Example GitHub API error response (UTF-16)
-├── requirements.txt                    # Python runtime dependencies
-├── LICENSE
-└── README.md
+│   ├── mcp_config.json                 # n8n MCP endpoint configuration
+│   └── skills/
+│       └── reproduce-bug-report/      # Oz cloud agent skill
+├── tasks/                              # Modular task modules
+│   ├── __init__.py
+│   ├── turing_qa.py                    # Intent parser & QA engine
+│   ├── tinyfish_correlator.py         # TinyFish scraper & correlator
+│   ├── discussion_consolidator.py    # Discussion consolidation
+│   ├── jira_integration.py            # Jira integration
+│   ├── culprit_analyzer.py           # Git regression intelligence
+│   ├── agent_runner.py               # TinyFish browser automation
+│   ├── analyzer.py                   # Root-cause analysis
+│   ├── docker_provisioner.py          # Docker sandbox management
+│   └── vision_module.py               # Video analysis
+├── frontend/                          # React dashboard
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── GitTimeSeriesDashboard.jsx
+│   │   │   └── GitHubAuthModal.jsx
+│   │   ├── main.jsx
+│   │   └── styles.css
+│   └── dist/                          # Built frontend assets
+├── scripts/                           # Utility scripts
+│   ├── invite_turing.sh               # Bash invitation helper
+│   ├── invite_turing.ps1              # PowerShell invitation helper
+│   ├── diff_cloud_workflow.py
+│   ├── n8n_mcp_client.py
+│   ├── retrigger_discussions.py
+│   ├── switch_backend_url.py
+│   ├── sync_upstream_issues.py
+│   ├── sync_workflow_to_cloud.py
+│   ├── test_jira_converter.py
+│   └── test_jira_flow.py
+├── main.py                            # FastAPI application
+├── turing-agent-workflow.json         # n8n GitHub workflow
+├── accept-turing-invite-workflow.json # n8n invitation workflow
+├── requirements.txt                   # Python dependencies
+├── project_context.md                 # Detailed architecture documentation
+├── tasks.md                           # Development tasks
+├── README.md
+└── LICENSE
 ```
-
-`architecture.png` depicts a broader **conceptual** workflow, including steps that are not fully present in the supplied code. This README's architecture diagram distinguishes implemented endpoints from downstream automation still required.
 
 ## Prerequisites
 
-- Python **3.10+** and `pip` (a virtual environment is recommended).
-- Git for cloning repositories.
-- Docker Desktop / an accessible Docker daemon **optional**, for attempting a containerized investigation. The fallback does not start the target application.
-- API credentials as needed for specific integrations (see below).
-- For n8n: an n8n instance that can reach the FastAPI backend, and a GitHub token with permissions appropriate to the workflow.
-- For invitation helpers: [GitHub CLI (`gh`)](https://cli.github.com/) authenticated as the repository owner or another account permitted to invite collaborators.
+- Python **3.10+** and `pip` (a virtual environment is recommended)
+- Git for cloning repositories
+- Docker Desktop / an accessible Docker daemon **optional**, for containerized investigation
+- Node.js 18+ and npm for frontend development
+- API credentials as needed for specific integrations (see below)
+- For n8n: an n8n instance that can reach the FastAPI backend
+- For invitation helpers: [GitHub CLI (`gh`)](https://cli.github.com/)
 
 ## Local setup
 
-1. Clone the **actual team repository** (replace the placeholder with its URL; do not assume the backend's hard-coded RepoOwl target is the Turing-Agent repository):
+1. Clone the repository:
 
    ```bash
-   git clone <YOUR_TURING_AGENT_REPOSITORY_URL>
-   cd <YOUR_CLONED_REPOSITORY_DIRECTORY>
+   git clone https://github.com/Turing-agent/Turing-agent.git
+   cd Turing-agent
    ```
 
-2. Create a virtual environment and install dependencies:
+2. Create a virtual environment and install Python dependencies:
 
    ```bash
    python3 -m venv .venv
    source .venv/bin/activate  # macOS / Linux
-   python -m pip install -r requirements.txt
+   # On Windows PowerShell: .venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
    ```
 
-   On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`.
-
-3. Configure a local `.env` file as needed. The repository's `.gitignore` excludes `.env` and `.env.*` except `.env.example`. **Never commit real tokens.**
+3. Configure environment variables in `.env`:
 
    ```dotenv
-   # Vision / root-cause analysis (optional for fallback behavior)
-   OPENAI_API_KEY=
-   VISION_MODEL_PROVIDER=local
+   # Groq LLM (required for triage and fix generation)
+   GROQ_API_KEY=gsk_...
+   GROQ_MODEL=openai/gpt-oss-120b
 
-   # TinyFish remote agent and issue scraping (optional)
-   TINYFISH_API_KEY=
-   TINYFISH_MOCK=true
+   # TinyFish (optional for live investigation)
+   TINYFISH_API_KEY=sk-tinyfish-...
+   TINYFISH_MOCK=false
 
-   # Groq is required for /triage-discussion and /resolve-issue
-   GROQ_API_KEY=
-   # GROQ_MODEL=your-supported-model-id
+   # GitHub (required for API operations)
+   GITHUB_TOKEN=ghp_...
 
-   # GitHub REST requests (required for /resolve-issue and invitation acceptance)
-   GITHUB_TOKEN=
+   # Jira (optional for Jira integration)
+   JIRA_EMAIL=user@company.com
+   JIRA_API_TOKEN=...
+   JIRA_URL=https://company.atlassian.net
    ```
 
-4. **Check the known import blocker described below before starting the app.** In the supplied snapshot, `main.py` references `List` without importing it, so `uvicorn` cannot start until that code issue is fixed on your working branch or upstream.
-
-5. Once the import issue is resolved, launch the backend:
+4. Launch the backend:
 
    ```bash
    uvicorn main:app --reload --host 127.0.0.1 --port 8000
    ```
 
-6. Confirm the health endpoint:
+5. (Optional) Build and serve the frontend:
+
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   cd ..
+   # Frontend will be served at http://127.0.0.1:8000/dashboard
+   ```
+
+6. Verify health endpoint:
 
    ```bash
    curl http://127.0.0.1:8000/
    ```
 
-   Interactive FastAPI docs are available at `http://127.0.0.1:8000/docs` when the server is running.
-
-> `PORT` is **not read directly** by `main.py` in this snapshot. Set the server port with the `uvicorn --port` argument (or your process manager), not by relying on `PORT` alone.
+   Interactive FastAPI docs are available at `http://127.0.0.1:8000/docs`
 
 ## Configuration
 
 | Variable | Used by | Requirement / default |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Vision and `analyzer.py` | Optional. Without it, uses deterministic alternatives. |
-| `VISION_MODEL_PROVIDER` | `vision_module.py` | Defaults to `openai`; uses OpenAI only if its API key is set, otherwise uses keyword-based fallback. `local` is **not** an integrated Ollama/vLLM backend. |
-| `TINYFISH_API_KEY` | Agent, triage, optional live issue inspection | Optional for simulated investigation; needed for live TinyFish requests. |
-| `TINYFISH_MOCK` | `agent_runner.py` | Defaults to `true`. Set `false` **and** provide a TinyFish key to attempt remote execution on a publicly reachable URL. |
-| `GROQ_API_KEY` | Triage and issue resolution | Required by `/triage-discussion` and `/resolve-issue`. |
-| `GROQ_MODEL` | Groq calls | Optional first-choice model; code has additional model names as fallbacks. |
-| `GITHUB_TOKEN` | GitHub file fetching and invite acceptance | Required for authenticated GitHub operations. Use only the permissions needed for each workflow. |
-| `TURING_AGENT_URL` | n8n investigation workflow | Base URL of the backend, defaults in workflow JSON to `http://127.0.0.1:8000`. Use an address **reachable from n8n**. |
-| `TURING_N8N_INVITE_WEBHOOK` | Invitation shell scripts | The **actual** n8n production webhook URL, not the placeholder in the scripts. |
-
-The first seven variables are used by Python. The final two are used by n8n or the invitation scripts, not read by the FastAPI app.
+| `GROQ_API_KEY` | Triage, fix generation, QA, culprit detection | Required |
+| `GROQ_MODEL` | Groq LLM calls | Optional; falls back to `openai/gpt-oss-120b` |
+| `TINYFISH_API_KEY` | TinyFish web automation, issue scraping | Optional for simulated mode |
+| `TINYFISH_MOCK` | TinyFish agent runner | Defaults to `true`; set `false` for live automation |
+| `GITHUB_TOKEN` | GitHub API operations | Required for authenticated operations |
+| `JIRA_EMAIL` | Jira REST API authentication | Optional for Jira integration |
+| `JIRA_API_TOKEN` | Jira REST API authentication | Optional for Jira integration |
+| `JIRA_URL` | Jira instance base URL | Optional; defaults to `https://jira.atlassian.net` |
 
 ## API reference
 
-FastAPI defines these five route paths (six HTTP method/path combinations):
+### Core endpoints
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | Health/status response; reports application version `2.0.0`. |
-| `POST` | `/run-tinyfish` | Return an investigation report for an issue/discussion. |
-| `POST` | `/triage-discussion` | Return generated validation and issue-correlation comments. |
-| `POST` | `/resolve-issue` | Return Groq-generated proposed file changes. |
-| `GET`, `POST` | `/accept-turing-invite` | Accept pending invitations for the GitHub account represented by `GITHUB_TOKEN`. |
-
-### `POST /run-tinyfish`
-
-Request fields include optional `discussion_title`/`discussion_body` (or aliases `title`/`body`), `video_url`, `media_urls`, `live_url`, `discussion_url`, `discussion_number`, `repository`, and `author`.
-
-```bash
-curl -X POST http://127.0.0.1:8000/run-tinyfish \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "discussion_title": "Bug: settings action fails",
-    "discussion_body": "Describe the affected page, steps, and expected behavior.",
-    "video_url": null,
-    "live_url": null
-  }'
-```
-
-A normal response has this structure:
-
-```json
-{
-  "status": "success",
-  "report": "## TinyFish Investigation Report..."
-}
-```
-
-**Important:** This endpoint also catches operational exceptions and can return HTTP 200 with `status: "success"` **and an error diagnostic inside `report`**. Consumers must inspect the report; HTTP 200 alone does not mean the investigation succeeded. Mock-mode reports are simulated.
+| `GET` | `/` | Health check |
+| `GET` | `/dashboard` | React dashboard |
+| `POST` | `/triage-discussion` | Generate validation + correlation comments |
+| `POST` | `/chat-turing` | Intent-driven Q&A and investigation |
+| `POST` | `/resolve-issue` | Generate code fixes and create PR |
+| `POST` | `/consolidate-discussion` | Synthesize discussion into clean issue spec |
+| `GET/POST` | `/accept-turing-invite` | Accept GitHub collaborator invitations |
+| `POST` | `/jira/triage` | Triage Jira ticket with internal notes |
+| `POST` | `/jira/comment` | Handle Jira ticket commands |
+| `GET` | `/api/git-dag` | Fetch Git DAG with incidents |
+| `POST` | `/api/investigate-culprit` | Perform semantic regression analysis |
 
 ### `POST /triage-discussion`
-
-Requires `GROQ_API_KEY`. All of `discussion_title` and `discussion_body` are required; other listed fields are optional.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/triage-discussion \
@@ -248,124 +339,216 @@ curl -X POST http://127.0.0.1:8000/triage-discussion \
   }'
 ```
 
-Expected response keys: `status`, `validation_comment`, `tinyfish_correlation_comment`, and `scraped_issues_count`. Groq errors return HTTP 500.
+Response:
+```json
+{
+  "status": "success",
+  "validation_comment": "Hey @example-user! 👋 Thanks for reporting...",
+  "tinyfish_correlation_comment": "<!-- turing-bot -->\n## 🐟 TinyFish Cross-Issue Correlation...",
+  "scraped_issues_count": 3
+}
+```
 
 ### `POST /resolve-issue`
-
-Requires `GROQ_API_KEY` and GitHub repository access through `GITHUB_TOKEN`. The caller must supply an existing Git **tree SHA** for the intended base (not an arbitrary branch name). The endpoint proposes changes; **it does not apply them**.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/resolve-issue \
   -H 'Content-Type: application/json' \
   -d '{
     "issue_title": "Fix incorrect login redirect",
-    "issue_body": "Steps to reproduce and expected behavior...",
+    "issue_body": "Steps to reproduce...",
     "issue_number": 17,
     "repo_full_name": "OWNER/REPO",
     "base_tree_sha": "REPLACE_WITH_REAL_GIT_TREE_SHA",
-    "discussion_url": null,
-    "live_url": null
+    "author": "contributor"
   }'
 ```
 
-Example response **shape**:
-
+Response:
 ```json
 {
   "status": "success",
-  "commit_message": "fix: correct login redirect",
-  "summary": "Proposed changes to login routing.",
+  "commit_sha": "new-commit-sha",
+  "tree_sha": "new-tree-sha",
+  "branch_name": "issue-17",
+  "commit_message": "fix: resolve issue #17",
+  "summary": "1-2 sentence explanation",
   "changes": [
-    {"path": "src/example.js", "content": "/* proposed full file contents */"}
+    {"path": "src/example.js", "content": "..."}
   ],
-  "files_analyzed": 10,
-  "tinyfish_summary": null,
-  "tinyfish_screenshots": [],
-  "live_url": null
+  "files_changed": 1,
+  "changed_paths": ["src/example.js"],
+  "files_analyzed": 15
 }
 ```
 
-The example values above are illustrative, **not output from a tested run**. Review and test all proposed changes before creating a branch or PR. Errors return HTTP 500 with an error message.
+### `GET /api/git-dag`
 
-### `GET /accept-turing-invite` and `POST /accept-turing-invite`
+```bash
+curl "http://127.0.0.1:8000/api/git-dag?repo=OWNER/REPO&limit=30"
+```
 
-These backend routes query `GET /user/repository_invitations` and attempt to accept **every pending invitation** using the configured `GITHUB_TOKEN`. When the token is missing, they return a warning; errors are returned in JSON. These routes are separate from the bundled **n8n** invitation webhook (also named `accept-turing-invite`). Do not expose the Python route or n8n webhook publicly without appropriate access controls.
+Response:
+```json
+{
+  "repository": "OWNER/REPO",
+  "default_branch": "main",
+  "total_commits": 30,
+  "commits": [
+    {
+      "sha": "abc123...",
+      "short_sha": "abc1234",
+      "message": "Fix navbar navigation",
+      "author": "dev",
+      "date": "2026-10-31T10:00:00Z",
+      "lane": 0,
+      "lane_color": "#38bdf8",
+      "incidents": [...]
+    }
+  ],
+  "incidents": [...]
+}
+```
 
 ## n8n integration
 
-### Investigation workflow
+### GitHub Discussions workflow
 
-Import [`turing-agent-workflow.json`](turing-agent-workflow.json) into n8n and review every node before activating it:
+Import [`turing-agent-workflow.json`](turing-agent-workflow.json) into n8n:
 
-1. **GitHub Discussion / Issue Webhook:** n8n receives `POST /webhook/turing-agent-intake` once its workflow is activated. Configure GitHub to deliver the relevant events to this webhook. The workflow file alone does not configure GitHub webhooks.
-2. **Parse Bug & Extract URLs:** extracts title, body, GitHub repo/issue identifiers, video URLs, and a likely live deployment URL.
-3. **Turing-Agent Investigation Engine:** sends JSON to `${TURING_AGENT_URL}/run-tinyfish`; its configured request timeout is 120 seconds.
-4. **Post Verification Report to GitHub:** posts `report` using GitHub's `POST /repos/{owner}/{repo}/issues/{number}/comments` REST endpoint, with `GITHUB_TOKEN`.
-
-**GitHub Discussions caveat:** The exported final node is an **Issues/Pull Requests comment endpoint**, not a Discussions-comment endpoint. Publishing to an actual GitHub Discussion requires a suitable **GraphQL Discussions mutation** (such as `addDiscussionComment`) and the discussion's node ID. Do not assume the bundled workflow can reply to Discussions unmodified.
-
-**Connectivity:** n8n Cloud cannot reach your laptop's `127.0.0.1`. Give n8n a backend URL it can reach (for example, a secured deployment or temporary HTTPS tunnel) through `TURING_AGENT_URL`. Protect exposed webhook/API endpoints and keep credentials in n8n credential storage or supported environment-secret configuration.
-
-**Not supplied:** There is no exported n8n workflow in this ZIP for the newer `/triage-discussion` and `/resolve-issue` endpoints, or for automatically applying proposed files and opening GitHub PRs.
+1. **GitHub Trigger**: Receives `discussion` and `discussion_comment` events
+2. **Route by Event Switch**:
+   - **New Bug Report**: Acknowledge with 👀 → triage → post validation + correlation
+   - **Turing Chat**: Check for mention → call `/chat-turing` → post reply
+   - **Maintainer Approved**: Create issue → post progress → call `/resolve-issue` → open PR
+   - **RW Command**: Call `/consolidate-discussion` → patch issue
 
 ### Invitation workflow
 
-Import [`accept-turing-invite-workflow.json`](accept-turing-invite-workflow.json). Its webhook uses `GET /webhook/accept-turing-invite`; it then fetches pending invitations for the token's account and accepts them through GitHub's REST API. Configure `GITHUB_TOKEN` in n8n, test the workflow, enable it, and use the actual production URL in the helper scripts. The GitHub token used here must represent the invited bot account.
+Import [`accept-turing-invite-workflow.json`](accept-turing-invite-workflow.json):
+
+1. **Webhook trigger**: `GET /webhook/accept-turing-invite`
+2. **Fetch invitations**: Query GitHub API for pending invites
+3. **Accept invitations**: Accept each pending invite via PATCH
+
+## Jira integration
+
+Turing-Agent integrates with Jira Software for enterprise ticket triage:
+
+### Capabilities
+
+- **Queue Scraping**: Fetches open Jira tickets via REST API or TinyFish
+- **Internal Notes**: Posts maintainer validation + TinyFish correlation as INTERNAL NOTE (private to maintainers)
+- **Interactive Commands**:
+  - `RW`: Creates GitHub Issue with `source: Jira` label
+  - `approved`: Triggers automated PR fix workflow
+  - `Hi Turing, ...`: Dispatches through intent layer for Q&A
+- **Source Provenance**: Tracks ticket origin via labels (`source: Jira`, `source: GitHub Discussion`)
+
+### Endpoints
+
+- `POST /jira/triage`: Triages a Jira ticket with maintainer validation
+- `POST /jira/comment`: Handles interactive commands on Jira tickets
+
+## Git regression dashboard
+
+The React dashboard (`frontend/src/components/GitTimeSeriesDashboard.jsx`) provides:
+
+### Features
+
+1. **Interactive Git Graph Visualization**
+   - Authentic swimlane rendering (GitKraken/VS Code style)
+   - Branch color coding and merge arc visualization
+   - Tag and branch reference pills
+
+2. **Incident Pinning**
+   - Maps GitHub issues and discussions to commits by timestamp
+   - Red defect markers on commits with incidents
+   - Expandable incident dropdowns per commit
+
+3. **Culprit Investigation**
+   - One-click semantic regression analysis
+   - Groq LLM reasoning for commit blame
+   - Confidence scoring and explanation
+
+4. **GitHub Authentication**
+   - OAuth integration for private repo access
+   - Demo mode for public repositories
+
+5. **Repository Selection**
+   - Pre-configured repos (eventyaysandbox/eventyay_Sandbox, fossasia/eventyay, etc.)
+   - Dynamic user repo fetching via GitHub API
+
+### Access
+
+Visit `http://127.0.0.1:8000/dashboard` when the backend is running, or deploy the frontend with `npm run build` in the `frontend/` directory.
 
 ## Collaborator invitation workflow
 
-The included helper scripts use `gh` to invite the GitHub user `Turing-agent` to the **current repository** with the **admin** role, then trigger the invitation webhook.
+The helper scripts use `gh` to invite `Turing-agent` and trigger the n8n webhook:
 
-For Bash or Zsh:
-
+**Bash/Zsh:**
 ```bash
-# From the Turing-Agent repository, with gh authenticated
 export TURING_N8N_INVITE_WEBHOOK='https://YOUR_N8N_HOST/webhook/accept-turing-invite'
 source scripts/invite_turing.sh
 invite_turing
 ```
 
-For PowerShell:
-
+**PowerShell:**
 ```powershell
 $env:TURING_N8N_INVITE_WEBHOOK = 'https://YOUR_N8N_HOST/webhook/accept-turing-invite'
 . .\scripts\invite_turing.ps1
 Invite-Turing
 ```
 
-**Before using:** Confirm that `Turing-agent` is the correct account, that **admin** permission is genuinely needed, and that your team explicitly approves granting it. The scripts' final success message is printed even if the webhook has not confirmed acceptance; verify the repository's collaborator list in GitHub. The invitation endpoint may accept all pending invitations for the configured token, not just the current repository.
+**Before using:** Confirm that `Turing-agent` is the correct account and that your team approves granting it access.
 
 ## Current limitations
 
-The following limitations are based on the source files in this repository snapshot, not on assumptions about a separately deployed version:
-
-1. **Startup blocker:** `main.py` uses `Optional[List[str]]` for `media_urls` but imports `Optional`, `Dict`, and `Any` — **not `List`**. With the provided source, importing `main` raises `NameError: name 'List' is not defined`. A separate source-code fix is required; this README intentionally does not modify application code.
-2. **Simulated investigation is not proof:** `TINYFISH_MOCK=true` (the default) generates canned network/console errors and a synthetic OpenCV video. It does not open a real browser to reproduce the issue. Some fallback root-cause snippets and line numbers are also hard-coded. A report can say `BUG REPRODUCED & VERIFIED` even though the result is synthetic.
-3. **Live TinyFish result interpretation:** In the completed live-agent path, the code sets `reproduced=True` when a remote run completes, without a separate assertion that the reported defect actually occurred. Review its observation/screenshots independently.
-4. **Docker is best effort:** The provisioner attempts to run a Node image and start the target project, but does not check that the app is reachable/ready. The fallback creates a cloned workspace without launching a server. The Docker port mapping should be verified for the target application's actual port.
-5. **Fixes are proposals, not validated commits:** `/resolve-issue` fetches only a limited selection of source files and returns untested Groq-generated complete file contents. There is no built-in patch application, automated test execution, GitHub commit, or PR creation.
-6. **Workflow coverage and GitHub Discussions:** The included investigation n8n workflow posts through the GitHub Issues REST endpoint, which is not the appropriate endpoint for GitHub Discussions comments. The advanced triage/resolve automation shown conceptually elsewhere is not in the supplied exports.
-7. **Local file links are not shareable:** Generated reports can contain `file:///` links to temporary recordings or source paths. These will not be accessible to GitHub readers, and mock screenshot URLs are illustrative. No public artifact uploader is implemented in these files.
-8. **Webhook security:** FastAPI endpoints in `main.py` do not implement authentication or GitHub webhook signature verification. Restrict access at your deployment/orchestration boundary and use least-privilege credentials. Avoid exposing `/accept-turing-invite` without protection.
+1. **Simulated investigation**: `TINYFISH_MOCK=true` (default) generates canned reports. Live TinyFish automation requires a valid API key.
+2. **LLM hallucinations**: Groq-generated code fixes require human review before merging.
+3. **Token limits**: Discussion consolidation enforces 2,500 character limit for LLM safety.
+4. **Docker requirement**: Sandbox provisioning requires Docker; falls back to temporary workspace if unavailable.
+5. **GitHub API rate limits**: High-volume operations may hit rate limits; implement backoff/retry logic as needed.
 
 ## Development and troubleshooting
 
-- **`NameError: name 'List' is not defined`:** Known snapshot bug in `main.py`; fix the Python import in a **separate code PR** or use a team-approved fixed branch before running the server.
-- **`GROQ_API_KEY is not set`:** `/triage-discussion` and `/resolve-issue` require Groq credentials; `/run-tinyfish` can use fallback behavior without them.
-- **Docker unreachable:** The backend falls back to a local temporary directory; this is **not** equivalent to an operational reproduction server.
-- **Unexpected 200 response with a failure:** Inspect `/run-tinyfish`'s `report` content; an operational exception is encoded as an error report even when the HTTP response is 200.
-- **n8n cannot connect:** Ensure `TURING_AGENT_URL` resolves from **the n8n runtime** rather than only from your local browser.
-- **GitHub comment fails:** Check token permissions, whether the webhook is receiving an Issue versus a Discussion, and whether the chosen API matches that GitHub resource type.
-- **No automated tests in snapshot:** No `tests/` directory or test command is included in the provided ZIP. Validate critical behavior in an isolated environment before production use.
+### Running tests
 
-For development changes, use feature branches and open reviewed pull requests. Document new endpoints, environment variables, n8n exports, and behavior changes alongside the corresponding code changes.
+```bash
+# Run Python tests (if available)
+pytest
 
+# Run frontend tests
+cd frontend
+npm test
+```
 
+### Building the frontend
 
-## Contributing
+```bash
+cd frontend
+npm install
+npm run build
+```
 
-We welcome community contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) to get started with reporting bugs, proposing features, and opening pull requests.
+### Debugging
+
+- Enable debug logging by setting `LOG_LEVEL=DEBUG` in `.env`
+- Check FastAPI docs at `http://127.0.0.1:8000/docs` for interactive API testing
+- Monitor n8n workflow execution logs in the n8n UI
+
+### Common issues
+
+- **Import errors**: Ensure `tasks/` directory is in `sys.path` (handled in `main.py`)
+- **Groq rate limits**: The code implements backoff retries; adjust `GROQ_MODEL` if needed
+- **TinyFish timeout**: Increase timeout in `agent_runner.py` if automation takes longer
+- **GitHub authentication**: Verify `GITHUB_TOKEN` has required permissions (repo, issues, pull requests)
 
 ## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE).
+See [LICENSE](LICENSE) file for details.
+
+---
+
+*Autonomous QA powered by TinyFish & Groq LLM*
