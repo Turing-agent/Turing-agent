@@ -54,6 +54,101 @@ def get_jira_base_url() -> str:
     return url.rstrip("/")
 
 
+def markdown_to_jira_markup(text: str) -> str:
+    """
+    Converts GitHub Flavored Markdown (GFM) into native Atlassian Jira Wiki Markup.
+    - ```lang ... ``` -> {code:lang}\n...\n{code}
+    - `code` -> {{code}}
+    - ### Header -> h3. Header
+    - **bold** -> *bold*
+    - [label](url) -> [label|url]
+    - - item -> * item
+    - - [ ] / - [x] -> ( ) / (/)
+    - > quote -> {quote}quote{quote}
+    - Tables: |---|---| removed, headers -> || H1 || H2 ||
+    - Strip HTML comments <!-- ... -->
+    """
+    if not text:
+        return ""
+
+    out = text
+
+    # 1. Remove HTML comments (e.g., <!-- turing-bot -->)
+    out = re.sub(r'<!--.*?-->', '', out, flags=re.DOTALL)
+
+    # 2. Convert fenced code blocks: ```lang ... ``` -> {code:lang} ... {code}
+    def replace_code_block(match):
+        lang = match.group(1).strip()
+        code = match.group(2).strip('\r\n')
+        if lang:
+            return f"{{code:{lang}}}\n{code}\n{{code}}"
+        return f"{{code}}\n{code}\n{{code}}"
+
+    out = re.sub(r'```([a-zA-Z0-9_\-\+]*)\n(.*?)```', replace_code_block, out, flags=re.DOTALL)
+
+    # 3. Convert inline code: `code` -> {{code}}
+    out = re.sub(r'`([^`\n]+)`', r'{{\1}}', out)
+
+    # 4. Convert headers (h1 to h6)
+    out = re.sub(r'^######\s+(.+)$', r'h6. \1', out, flags=re.MULTILINE)
+    out = re.sub(r'^#####\s+(.+)$', r'h5. \1', out, flags=re.MULTILINE)
+    out = re.sub(r'^####\s+(.+)$', r'h4. \1', out, flags=re.MULTILINE)
+    out = re.sub(r'^###\s+(.+)$', r'h3. \1', out, flags=re.MULTILINE)
+    out = re.sub(r'^##\s+(.+)$', r'h2. \1', out, flags=re.MULTILINE)
+    out = re.sub(r'^#\s+(.+)$', r'h1. \1', out, flags=re.MULTILINE)
+
+    # 5. Convert markdown links: [text](url) -> [text|url]
+    out = re.sub(r'\[([^\]\n]+)\]\((https?://[^\)\s]+)\)', r'[\1|\2]', out)
+
+    # 6. Convert task list checkboxes: - [ ] -> ( ), - [x] -> (/)
+    out = re.sub(r'^(\s*)[-\*]\s+\[\s*\]\s+', r'\1( ) ', out, flags=re.MULTILINE)
+    out = re.sub(r'^(\s*)[-\*]\s+\[[xX]\]\s+', r'\1(/) ', out, flags=re.MULTILINE)
+
+    # 7. Convert bullet lists: - item -> * item
+    def replace_bullet(match):
+        indent = match.group(1)
+        depth = len(indent) // 2 + 1
+        bullet_char = '*' * depth
+        return f"{bullet_char} {match.group(2)}"
+
+    out = re.sub(r'^(\s*)[-\*]\s+(.+)$', replace_bullet, out, flags=re.MULTILINE)
+
+    # 8. Convert bold: **text** -> *text*
+    out = re.sub(r'\*\*([^\*\n]+)\*\*', r'*\1*', out)
+
+    # 9. Convert tables:
+    lines = out.split("\n")
+    processed_lines = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if i + 1 < len(lines) and re.match(r'^\s*\|(?:\s*:?-+:?\s*\|)+\s*$', lines[i+1]):
+            header_cells = [c.strip() for c in line.split('|')[1:-1]]
+            jira_header = "|| " + " || ".join(header_cells) + " ||"
+            processed_lines.append(jira_header)
+            i += 2
+            continue
+        if re.match(r'^\s*\|(?:\s*:?-+:?\s*\|)+\s*$', line):
+            i += 1
+            continue
+        processed_lines.append(line)
+        i += 1
+    out = "\n".join(processed_lines)
+
+    # 10. Convert blockquotes: > quote -> {quote}quote{quote}
+    def replace_quotes(match):
+        content = match.group(0)
+        unquoted = re.sub(r'^[ \t]*>[ \t]?', '', content, flags=re.MULTILINE)
+        return f"{{quote}}\n{unquoted.strip()}\n{{quote}}"
+
+    out = re.sub(r'(?:^[ \t]*>.*(?:\n|$))+', replace_quotes, out, flags=re.MULTILINE)
+
+    # 11. Normalize excess newlines
+    out = re.sub(r'\n{3,}', '\n\n', out)
+
+    return out.strip()
+
+
 def post_jira_comment(
     ticket_key: str,
     comment_body: str,
@@ -62,6 +157,7 @@ def post_jira_comment(
 ) -> Dict[str, Any]:
     """
     Posts a comment to a Jira ticket.
+    - Automatically converts GitHub Markdown into Jira Wiki Markup.
     - If internal=True: Posted as an INTERNAL NOTE (visible only to agents/developers).
     - If internal=False: Posted as a PUBLIC REPLY TO CUSTOMER.
     """
@@ -69,7 +165,8 @@ def post_jira_comment(
     api_url = f"{base_url}/rest/api/2/issue/{ticket_key}/comment"
     headers = get_jira_auth_headers()
 
-    payload = {"body": comment_body}
+    formatted_body = markdown_to_jira_markup(comment_body)
+    payload = {"body": formatted_body}
     if internal:
         # Jira Service Management / Jira Cloud standard property for Internal Notes
         payload["properties"] = [
@@ -88,7 +185,7 @@ def post_jira_comment(
             "mock": True,
             "ticket_key": ticket_key,
             "internal": internal,
-            "body": comment_body
+            "body": formatted_body
         }
 
     try:
@@ -123,30 +220,42 @@ def scrape_jira_open_queue(
     # Try direct Jira REST Search API
     if "Authorization" in headers:
         try:
-            search_url = f"{base_url}/rest/api/2/search"
-            params = {
-                "jql": jql,
-                "maxResults": limit,
-                "fields": "summary,description,reporter,created,status,comment"
-            }
-            res = requests.get(search_url, params=params, headers=headers, timeout=15)
-            if res.ok:
-                data = res.json()
-                tickets = []
-                for issue in data.get("issues", []):
-                    key = issue.get("key")
-                    fields = issue.get("fields", {})
-                    tickets.append({
-                        "key": key,
-                        "summary": fields.get("summary", ""),
-                        "description": fields.get("description", "") or "",
-                        "reporter": fields.get("reporter", {}).get("displayName") or fields.get("reporter", {}).get("name", "customer"),
-                        "created": fields.get("created"),
-                        "status": fields.get("status", {}).get("name", "Open"),
-                        "url": f"{base_url}/browse/{key}",
-                        "source": "jira"
-                    })
-                return tickets
+            for endpoint in ["/rest/api/3/search/jql", "/rest/api/3/search", "/rest/api/2/search"]:
+                search_url = f"{base_url}{endpoint}"
+                params = {
+                    "jql": jql,
+                    "maxResults": limit,
+                    "fields": "summary,description,reporter,created,status,comment"
+                }
+                res = requests.get(search_url, params=params, headers=headers, timeout=15)
+                if res.ok:
+                    data = res.json()
+                    tickets = []
+                    for issue in data.get("issues", []):
+                        key = issue.get("key")
+                        fields = issue.get("fields", {})
+                        desc = fields.get("description", "")
+                        if isinstance(desc, dict):
+                            try:
+                                text_parts = []
+                                for block in desc.get("content", []):
+                                    for item in block.get("content", []):
+                                        if item.get("text"):
+                                            text_parts.append(item.get("text"))
+                                desc = "\n".join(text_parts)
+                            except Exception:
+                                desc = str(desc)
+                        tickets.append({
+                            "key": key,
+                            "summary": fields.get("summary", ""),
+                            "description": desc or "",
+                            "reporter": fields.get("reporter", {}).get("displayName") or fields.get("reporter", {}).get("name", "customer"),
+                            "created": fields.get("created"),
+                            "status": fields.get("status", {}).get("name", "Open"),
+                            "url": f"{base_url}/browse/{key}",
+                            "source": "jira"
+                        })
+                    return tickets
         except Exception as e:
             logger.warning(f"[Jira] Search API returned error: {e}")
 
@@ -229,19 +338,25 @@ def triage_jira_ticket(
     )
 
     # Step 3: Combine into Jira Internal Note
+    bot_header = (
+        "### 🤖 Turing-Agent Autonomous QA Review\n"
+        "_Automated report generated by **Turing-Agent QA Engine** (Internal-only for maintainers & engineering)_\n\n"
+    )
+    maintainer_actions = (
+        "\n\n> 💡 **Maintainer Actions**:\n"
+        "> - Reply to customer with `Hi Turing, ...` to ask questions or explore code.\n"
+        "> - Reply with `RW` to create an official GitHub Issue with label `source: Jira`.\n"
+        "> - Reply with `approved` to trigger automated PR synthesis."
+    )
     internal_note_body = (
-        f"🔒 **[Turing Internal Maintainer Review & Component Intelligence]**\n"
-        f"*Note: This evaluation is internal-only for maintainers and engineering.*\n\n"
+        f"{bot_header}"
         f"{validation}\n\n"
         f"---\n\n"
-        f"{correlation}\n\n"
-        f"> 💡 **Maintainer Actions**:\n"
-        f"> - Reply to customer with `Hi Turing, ...` to ask questions or explore code.\n"
-        f"> - Reply with `RW` to create an official GitHub Issue with label `source: Jira`.\n"
-        f"> - Reply with `approved` to trigger automated PR synthesis."
+        f"{correlation}"
+        f"{maintainer_actions}"
     )
 
-    # Step 4: Post to Jira as Internal Note
+    # Step 4: Post to Jira as Internal Note (post_jira_comment converts to Jira Wiki Markup)
     post_res = post_jira_comment(
         ticket_key=ticket_key,
         comment_body=internal_note_body,
@@ -281,8 +396,25 @@ def handle_jira_comment(
     clean_lower = clean_text.lower()
     ticket_url = ticket_url or f"{get_jira_base_url()}/browse/{ticket_key}"
 
+    # 0. IGNORE bot's own comments to avoid infinite feedback loops
+    bot_signatures = [
+        "turing-agent autonomous",
+        "turing internal maintainer review",
+        "turing internal",
+        "<!-- turing",
+        "turing-bot",
+        "github issue raised — ready for work",
+        "github issue raised",
+        "maintainer approval received",
+        "turing-agent has received maintainer approval",
+        "🤖"
+    ]
+    if any(sig in clean_lower for sig in bot_signatures):
+        logger.info(f"[Jira] Ignoring comment on {ticket_key} because it originated from Turing bot.")
+        return {"status": "ignored", "reason": "bot_self_comment"}
+
     # 1. Handle RW Command (Raise Issue Only)
-    is_rw = clean_lower == "rw" or clean_lower.startswith("rw ") or "rw command" in clean_lower
+    is_rw = clean_lower in ["rw", "/rw", "rw."] or clean_lower.startswith("rw ") or clean_lower.startswith("rw\n") or clean_lower.startswith("rw:")
     if is_rw:
         logger.info(f"[Jira] RW command detected for {ticket_key}. Synthesizing GitHub Issue with 'source: Jira'...")
         github_token = os.getenv("GITHUB_TOKEN")
@@ -348,7 +480,7 @@ def handle_jira_comment(
 
         # Reply to customer / maintainer in Jira (PUBLIC comment)
         customer_reply = (
-            f"### 📋 GitHub Issue Raised — Ready for Work\n\n"
+            f"### 🤖 Turing-Agent — GitHub Issue Raised\n\n"
             f"Issue [#{issue_number}]({issue_url}) has been created on GitHub repository **`{repository}`** with label `source: Jira`.\n\n"
             f"The ticket specification has been consolidated and mapped to the repository codebase.\n\n"
             f"> To trigger an automated code fix and pull request, reply with `approved`."
@@ -372,9 +504,10 @@ def handle_jira_comment(
         }
 
     # 2. Handle 'approved' Command
-    if clean_lower == "approved" or clean_lower.startswith("approved "):
+    is_approved = clean_lower in ["approved", "/approved", "approved."] or clean_lower.startswith("approved ") or clean_lower.startswith("approved\n")
+    if is_approved:
         customer_reply = (
-            f"### 🚀 Maintainer Approval Received\n\n"
+            f"### 🤖 Turing-Agent — Maintainer Approval Received\n\n"
             f"Turing-agent has received maintainer approval for **{ticket_key}** and is autonomously synthesizing the code repair and opening a pull request on `{repository}`."
         )
         post_jira_comment(
@@ -390,6 +523,17 @@ def handle_jira_comment(
         }
 
     # 3. Handle 'Hi Turing, ...' and General Q&A
+    # Strict Guard: ONLY reply if the comment explicitly mentions or invokes Turing!
+    is_turing_invoked = (
+        "turing" in clean_lower or
+        clean_lower.startswith("hi turing") or
+        clean_lower.startswith("hey turing") or
+        clean_lower.startswith("@turing")
+    )
+    if not is_turing_invoked:
+        logger.info(f"[Jira] Comment on {ticket_key} from @{comment_author} does not invoke Turing. Ignored.")
+        return {"status": "ignored", "reason": "turing_not_invoked"}
+
     from tasks.turing_qa import dispatch_turing_chat
     chat_res = dispatch_turing_chat(
         discussion_title=ticket_summary,
@@ -402,11 +546,12 @@ def handle_jira_comment(
         github_token=os.getenv("GITHUB_TOKEN")
     )
     reply_markdown = chat_res.get("reply", "I am investigating this ticket.")
+    bot_reply = f"### 🤖 Turing-Agent Response\n\n{reply_markdown}"
 
-    # Post as public Reply to Customer
+    # Post as public Reply to Customer (post_jira_comment will format to Jira syntax)
     post_jira_comment(
         ticket_key=ticket_key,
-        comment_body=reply_markdown,
+        comment_body=bot_reply,
         internal=False
     )
 
@@ -414,6 +559,6 @@ def handle_jira_comment(
         "status": "success",
         "action": "customer_reply",
         "ticket_key": ticket_key,
-        "reply": reply_markdown,
+        "reply": bot_reply,
         "intent": chat_res.get("intent")
     }
