@@ -1793,6 +1793,20 @@ async def get_user_repos(authorization: Optional[str] = Header(None)):
     token = token or os.getenv("GITHUB_TOKEN")
     default_repos = [
         {
+            "full_name": "eventyaysandbox/eventyay_Sandbox",
+            "name": "eventyay_Sandbox",
+            "description": "Eventyay sandbox with 26 mirrored issues and live QA versioning",
+            "stars": 15,
+            "private": False
+        },
+        {
+            "full_name": "fossasia/eventyay",
+            "name": "eventyay",
+            "description": "Official FOSSASIA Eventyay upstream repository",
+            "stars": 3200,
+            "private": False
+        },
+        {
             "full_name": "YASHK-arch/eventyay_Sandbox",
             "name": "eventyay_Sandbox",
             "description": "Eventyay Open-Event sandbox with live discussions and test issues",

@@ -3,7 +3,7 @@
 
 2. utilize the discussions window of Turing  to implement Jira connection (scope-refinement)
 
-3. remove the reproduction node system for ui bugs (because of irrelevance in bigger systems, can't be trusted)
+3. remove the reproduction node system for ui bugs (because of irrelevance in bigger systems, can't be trusted)   -- done
 
 4. so can we implement something like sentry, further we make a dashbaord which we can connect without github account, and then add a specific repo and connect other tools like Jira, Gitlab, Github discussions, these all application where developers, users and other will report failures bug etc. , Tinyfish will scrape all reported content, identifying the version of the codebase from which its reported, and make a time series database in route with the commits and merges data, so on the dahbaord mainatiner can see the failure and the segment of the git graph it occured on. Of cousrese I have implemented a bot system whre it checks for other unworked issue to check if the resolution that issue may resolve this issue or not, often called the one rocks two kills idiom, but here the dashbaord scenario is diffenrent, here creating a complete commity base dverisoning history, it tells thta maintainer at what part of the previous commit may have influenced the latets report, it investigates the git graph to find out the last changes commits on teh influenceing issue area, to find out the probabble guiltty of the issue. 
 

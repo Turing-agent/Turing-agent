@@ -415,190 +415,452 @@
 }
 .spinner.large { width: 28px; height: 28px; border-width: 3px; }
 
-/* Timeline Node & Rail */
-.timeline-container {
+/* Authentic Git Graph Table & Swimlanes Layout */
+.git-graph-table-container {
   display: flex;
   flex-direction: column;
-  gap: 0;
-}
-.timeline-node {
-  display: flex;
-  gap: 16px;
-  position: relative;
-  padding-bottom: 16px;
-}
-.rail-column {
-  width: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-}
-.rail-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: #1e1e1d;
-  border: 1px solid #383836;
-  display: grid;
-  place-items: center;
-  color: #8c8c89;
-  z-index: 2;
-  transition: 0.2s;
-}
-.rail-dot.merge {
-  background: #1e1b4b;
-  border-color: #6366f1;
-  color: #a5b4fc;
-}
-.rail-dot.has-incident {
-  background: #450a0a;
-  border-color: #ef4444;
-  color: #fca5a5;
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
-}
-.rail-line {
-  position: absolute;
-  top: 20px;
-  bottom: -4px;
-  width: 2px;
-  background: #262624;
+  background: #111110;
+  border: 1px solid #242422;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-.commit-card {
-  flex: 1;
-  background: #141414;
-  border: 1px solid #282827;
-  border-radius: 6px;
-  padding: 10px 14px;
-  transition: 0.2s;
-}
-.timeline-node.selected-node .commit-card {
-  border-color: var(--lime);
-  background: #191918;
-}
-.commit-header {
+.git-graph-header-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-.commit-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  background: #181816;
+  border-bottom: 1px solid #262624;
+  padding: 8px 12px;
   font-size: 11px;
+  font-weight: 600;
+  color: #7d7d78;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-family: 'Fira Code', monospace;
 }
-.commit-sha {
-  background: #1f1f1e;
-  border: 1px solid #333331;
+
+.col-graph { width: 60px; flex-shrink: 0; }
+.col-desc { flex: 1; min-width: 250px; overflow: hidden; }
+.col-defects { width: 110px; flex-shrink: 0; text-align: center; }
+.col-author { width: 120px; flex-shrink: 0; }
+.col-date { width: 115px; flex-shrink: 0; color: #6e6e6a; font-size: 11px; }
+.col-sha { width: 85px; flex-shrink: 0; text-align: right; }
+
+.git-graph-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.commit-entry-group {
+  border-bottom: 1px solid #1c1c1a;
+  transition: background 0.15s ease;
+}
+.commit-entry-group:hover {
+  background: rgba(255, 255, 255, 0.015);
+}
+.commit-entry-group.selected-group {
+  background: rgba(200, 240, 96, 0.04);
+}
+
+.git-commit-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 12px;
+  min-height: 38px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.git-rail-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.git-rail-svg {
+  display: block;
+}
+
+.incident-glow-ring {
+  animation: pulse-ring 2s infinite ease-in-out;
+}
+@keyframes pulse-ring {
+  0% { opacity: 0.4; r: 7; }
+  50% { opacity: 0.9; r: 9; }
+  100% { opacity: 0.4; r: 7; }
+}
+
+.col-desc {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 12px;
+}
+
+.ref-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
   border-radius: 4px;
-  padding: 2px 5px;
+  font-size: 10px;
+  font-weight: 500;
+  font-family: 'Fira Code', monospace;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.ref-pill:hover { opacity: 0.85; }
+
+.ref-pill.branch {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+.ref-pill.branch.remote {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #c084fc;
+}
+.ref-pill.tag {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  color: #fbbf24;
+}
+
+.commit-subject-link {
+  color: #ddddd8;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.commit-subject-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Defects Dropdown Button */
+.defects-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: 'Fira Code', monospace;
+  color: #fca5a5;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.defects-dropdown-btn:hover, .defects-dropdown-btn.active {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+.defect-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+.chevron-icon {
+  transition: transform 0.2s ease;
+}
+.chevron-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.no-defects-dash {
+  color: #444441;
+  font-size: 12px;
+}
+
+/* Author Column Link */
+.author-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #8c8c87;
+  text-decoration: none;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.author-link:hover { color: #ddddd8; }
+.author-avatar-img {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+/* Commit SHA Column */
+.sha-link-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sha-code-link {
+  text-decoration: none;
+}
+.sha-code-link code {
+  background: #1b1b19;
+  border: 1px solid #2e2e2b;
+  border-radius: 4px;
+  padding: 2px 6px;
   font-family: 'Fira Code', monospace;
   font-size: 10px;
   color: var(--lime);
   cursor: pointer;
+  transition: background 0.15s;
+}
+.sha-code-link code:hover {
+  background: #282824;
+  border-color: var(--lime);
+}
+.copy-sha-btn {
+  background: none;
+  border: 0;
+  color: #62625e;
+  cursor: pointer;
+  padding: 2px;
   display: flex;
   align-items: center;
-  gap: 4px;
 }
-.commit-sha:hover { background: #262624; }
-.commit-author {
+.copy-sha-btn:hover { color: #aaa; }
+.check-green { color: var(--lime); }
+
+/* Dropdown Accordion Panel for Commit Defects */
+.commit-defects-dropdown-panel {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #92928e;
-}
-.author-avatar {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-}
-.commit-time {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: #6b6b67;
-  font-size: 10px;
-  font-family: 'Fira Code', monospace;
-}
-.tag-pill {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(99, 102, 241, 0.3);
-  color: #a5b4fc;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 9px;
-  font-family: 'Fira Code', monospace;
-}
-.commit-msg {
-  font-size: 12px;
-  color: #e5e5e1;
-  line-height: 1.4;
+  background: #141413;
+  border-top: 1px dashed #242422;
+  border-bottom: 1px solid #1a1a18;
+  overflow: hidden;
 }
 
-/* Pinned Failure Reports / Incidents */
-.pinned-incidents-container {
-  margin-top: 10px;
+.dropdown-indicator-rail {
+  width: 60px;
+  flex-shrink: 0;
+  border-right: 2px dashed rgba(239, 68, 68, 0.35);
+  margin-right: 12px;
+  background: repeating-linear-gradient(
+    180deg,
+    transparent,
+    transparent 4px,
+    rgba(239, 68, 68, 0.05) 4px,
+    rgba(239, 68, 68, 0.05) 8px
+  );
+}
+
+.dropdown-nodes-container {
+  flex: 1;
+  padding: 8px 14px 10px 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.incident-pill {
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 5px;
-  padding: 7px 10px;
+
+.defect-node-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: #191917;
+  border: 1px solid #282825;
+  border-radius: 6px;
+  padding: 6px 12px;
   cursor: pointer;
-  transition: 0.2s;
+  transition: all 0.15s ease;
 }
-.incident-pill:hover, .incident-pill.active {
-  background: rgba(239, 68, 68, 0.16);
+.defect-node-card:hover {
+  background: #20201d;
+  border-color: #3e3e3a;
+}
+.defect-node-card.active-incident {
+  background: rgba(239, 68, 68, 0.1);
   border-color: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
 }
-.pill-left {
+
+.defect-node-left {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
   overflow: hidden;
+  flex: 1;
 }
-.incident-icon { color: #ef4444; flex-shrink: 0; }
-.incident-badge {
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 10px;
   font-size: 9px;
+  font-weight: 600;
   font-family: 'Fira Code', monospace;
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  padding: 2px 5px;
-  border-radius: 3px;
+  text-transform: uppercase;
   flex-shrink: 0;
 }
-.incident-title-text {
-  font-size: 11px;
-  color: #fca5a5;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.status-badge.open {
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  color: #4ade80;
 }
-.investigate-trigger {
-  background: none;
-  border: 0;
-  color: #fca5a5;
+.status-badge.closed {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  color: #c084fc;
+}
+.green-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #4ade80;
+}
+
+.kind-badge {
   font-size: 10px;
   font-family: 'Fira Code', monospace;
+  background: #242421;
+  color: #a3a39e;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.defect-title-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ddddd8;
+  font-size: 11px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.defect-title-link:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+.ext-icon { color: #73736c; flex-shrink: 0; }
+
+.defect-node-right {
   display: flex;
   align-items: center;
-  gap: 3px;
-  cursor: pointer;
-  padding: 0;
+  gap: 12px;
+  flex-shrink: 0;
 }
-.investigate-trigger:hover { color: #fff; }
+
+.defect-author-link {
+  color: #8a8a84;
+  font-size: 11px;
+  text-decoration: none;
+}
+.defect-author-link:hover {
+  color: #ddd;
+}
+
+.defect-date-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #676762;
+  font-size: 10px;
+  font-family: 'Fira Code', monospace;
+}
+
+.inspect-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(200, 240, 96, 0.1);
+  border: 1px solid rgba(200, 240, 96, 0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: var(--lime);
+  font-size: 10px;
+  font-family: 'Fira Code', monospace;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.inspect-action-btn:hover {
+  background: var(--lime);
+  color: #000;
+}
+
+/* Inspector Links & Elements */
+.target-pill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(200, 240, 96, 0.12);
+  border: 1px solid rgba(200, 240, 96, 0.3);
+  color: var(--lime);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-family: 'Fira Code', monospace;
+  text-decoration: none;
+}
+.target-pill-link:hover {
+  background: var(--lime);
+  color: #000;
+}
+
+.culprit-sha-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+  color: var(--lime);
+}
+.culprit-sha-link:hover code {
+  text-decoration: underline;
+}
+
+.file-pill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #1f1f1d;
+  border: 1px solid #32322f;
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: #a5b4fc;
+  font-family: 'Fira Code', monospace;
+  font-size: 11px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.file-pill-link:hover {
+  background: #2b2b27;
+  border-color: #6366f1;
+}
+
+.synergy-pill-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: #ccc;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.synergy-pill-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
 
 /* Right Column: AI Culprit Inspector */
 .culprit-inspector-panel {
