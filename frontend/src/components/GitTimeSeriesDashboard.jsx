@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   GitBranch, GitCommit, GitMerge, AlertTriangle, ShieldAlert, 
-  Sparkles, CheckCircle2, Search, RefreshCw, ExternalLink, 
+  Sparkles, CheckCircle2, RefreshCw, ExternalLink, 
   ArrowLeft, Bot, GitPullRequest, Layers, Clock, User, 
-  ChevronRight, Code2, Tag, Cpu, Check, AlertCircle, Copy
+  ChevronRight, ChevronDown, Code2, Tag, Cpu, Check, AlertCircle, Copy
 } from 'lucide-react'
 
 const PROD_BACKEND_URL = 'https://turing-agent-backend.onrender.com'
@@ -14,12 +14,12 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ||
     : '')
 
 export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding }) {
-  const [selectedRepo, setSelectedRepo] = useState('YASHK-arch/eventyay_Sandbox')
-  const [customRepoInput, setCustomRepoInput] = useState('')
+  const [selectedRepo, setSelectedRepo] = useState('eventyaysandbox/eventyay_Sandbox')
   const [userRepos, setUserRepos] = useState([])
   const [loadingDAG, setLoadingDAG] = useState(false)
   const [dagData, setDagData] = useState({ commits: [], incidents: [] })
   const [dagError, setDagError] = useState(null)
+  const [expandedCommits, setExpandedCommits] = useState(new Set())
 
   // Culprit Investigation State
   const [selectedIncident, setSelectedIncident] = useState(null)
@@ -58,14 +58,13 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
 
     try {
       const headers = authState?.token ? { 'Authorization': `Bearer ${authState.token}` } : {}
-      let url = `${BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=25`
+      let url = `${BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=30`
       let res = await fetch(url, { headers })
       let ct = res.headers.get('content-type') || ''
 
-      // If we received non-JSON (e.g. Vite SPA fallback on localhost), fallback to direct production backend
       if (!ct.includes('application/json') && BACKEND_URL !== PROD_BACKEND_URL) {
         console.warn('Local endpoint returned non-JSON. Retrying with production Render backend...')
-        url = `${PROD_BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=25`
+        url = `${PROD_BACKEND_URL}/api/git-dag?repo=${encodeURIComponent(targetRepo)}&limit=30`
         res = await fetch(url, { headers })
         ct = res.headers.get('content-type') || ''
       }
@@ -84,7 +83,19 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
         setDagError(data.error)
       } else {
         setDagData(data)
-        // If there are incidents, auto-select the first one for convenience
+        
+        // Auto-expand commits that have incidents
+        const initialExpanded = new Set()
+        if (data.commits) {
+          data.commits.forEach(c => {
+            if (c.incidents && c.incidents.length > 0) {
+              initialExpanded.add(c.sha)
+            }
+          })
+        }
+        setExpandedCommits(initialExpanded)
+
+        // Auto-select first incident for convenience
         if (data.incidents && data.incidents.length > 0) {
           setSelectedIncident(data.incidents[0])
         }
@@ -99,6 +110,18 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
   useEffect(() => {
     loadGitDAG(selectedRepo)
   }, [selectedRepo])
+
+  const toggleCommitDropdown = (sha) => {
+    setExpandedCommits(prev => {
+      const next = new Set(prev)
+      if (next.has(sha)) {
+        next.delete(sha)
+      } else {
+        next.add(sha)
+      }
+      return next
+    })
+  }
 
   // 3. Run Culprit Detective
   const handleInvestigateIncident = async (incident) => {
@@ -173,6 +196,7 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
             <ArrowLeft size={16}/>
             <span>Overview</span>
           </button>
+          
           <div className="repo-selector-wrapper">
             <GitBranch size={16} className="branch-icon"/>
             <select 
@@ -180,10 +204,12 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
               onChange={(e) => setSelectedRepo(e.target.value)}
               className="repo-dropdown"
             >
-              <option value="YASHK-arch/eventyay_Sandbox">YASHK-arch/eventyay_Sandbox (Live QA Sandbox)</option>
+              <option value="eventyaysandbox/eventyay_Sandbox">eventyaysandbox/eventyay_Sandbox (Synced QA Sandbox - 26 Issues)</option>
+              <option value="fossasia/eventyay">fossasia/eventyay (Official Upstream Eventyay)</option>
+              <option value="YASHK-arch/eventyay_Sandbox">YASHK-arch/eventyay_Sandbox (Personal Sandbox)</option>
               <option value="Turing-agent/Turing-agent">Turing-agent/Turing-agent (Official)</option>
               {userRepos
-                .filter(r => r.full_name !== 'YASHK-arch/eventyay_Sandbox' && r.full_name !== 'Turing-agent/Turing-agent')
+                .filter(r => !['eventyaysandbox/eventyay_Sandbox', 'fossasia/eventyay', 'YASHK-arch/eventyay_Sandbox', 'Turing-agent/Turing-agent'].includes(r.full_name))
                 .map(r => (
                   <option key={r.full_name} value={r.full_name}>
                     {r.full_name} {r.private ? '🔒' : ''}
@@ -191,6 +217,7 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
                 ))}
             </select>
           </div>
+
           <button 
             className="refresh-btn" 
             onClick={() => loadGitDAG(selectedRepo)} 
@@ -246,7 +273,7 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
 
       {/* Main Workspace Layout */}
       <div className="dashboard-workspace">
-        {/* Left Column: Visual Git Time-Series DAG */}
+        {/* Left Column: Authentic Git Graph Table & Temporal Regression Timeline */}
         <section className="git-graph-section">
           <div className="section-title-bar">
             <div className="title-left">
@@ -272,73 +299,280 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
               <button className="button button-small" onClick={() => loadGitDAG(selectedRepo)}>Retry</button>
             </div>
           ) : (
-            <div className="timeline-container">
-              {dagData.commits?.map((commit, index) => {
-                const commitIncidents = dagData.incidents?.filter(inc => inc.commit_sha === commit.sha) || []
-                const isSelectedCommit = selectedIncident?.commit_sha === commit.sha
+            <div className="git-graph-table-container">
+              {/* Git Graph Header */}
+              <div className="git-graph-header-row">
+                <div className="col-graph">Graph</div>
+                <div className="col-desc">Description &amp; Refs</div>
+                <div className="col-defects">Defects</div>
+                <div className="col-author">Author</div>
+                <div className="col-date">Date</div>
+                <div className="col-sha">Commit</div>
+              </div>
 
-                return (
-                  <div key={commit.sha} className={`timeline-node ${isSelectedCommit ? 'selected-node' : ''}`}>
-                    {/* Rail Graphic */}
-                    <div className="rail-column">
-                      <div className={`rail-dot ${commit.is_merge ? 'merge' : ''} ${commitIncidents.length > 0 ? 'has-incident' : ''}`}>
-                        {commit.is_merge ? <GitMerge size={11}/> : <GitCommit size={11}/>}
-                      </div>
-                      {index < dagData.commits.length - 1 && <div className="rail-line" />}
-                    </div>
+              {/* Commits List with Expandable Incident Dropdowns */}
+              <div className="git-graph-body">
+                {dagData.commits?.map((commit) => {
+                  const hasIncidents = commit.incidents && commit.incidents.length > 0
+                  const isExpanded = expandedCommits.has(commit.sha)
+                  const isSelectedCommit = selectedIncident?.commit_sha === commit.sha
+                  const laneIndex = commit.lane || 0
+                  const laneColor = commit.lane_color || '#38bdf8'
 
-                    {/* Commit Content Card */}
-                    <div className="commit-card">
-                      <div className="commit-header">
-                        <div className="commit-meta">
-                          <code className="commit-sha" onClick={() => copyToClipboard(commit.sha, commit.sha)}>
-                            {commit.short_sha}
-                            {copiedSha === commit.sha ? <Check size={11}/> : <Copy size={11}/>}
-                          </code>
-                          <span className="commit-author">
-                            {commit.avatar_url && <img src={commit.avatar_url} alt="" className="author-avatar"/>}
-                            {commit.author}
-                          </span>
-                          <span className="commit-time">
-                            <Clock size={11}/>
+                  return (
+                    <div key={commit.sha} className={`commit-entry-group ${isSelectedCommit ? 'selected-group' : ''}`}>
+                      {/* Main Commit Row */}
+                      <div 
+                        className={`git-commit-row ${isSelectedCommit ? 'active-row' : ''}`}
+                        onClick={() => hasIncidents && toggleCommitDropdown(commit.sha)}
+                      >
+                        {/* Graph Swimlane Column */}
+                        <div className="col-graph git-rail-cell">
+                          <svg className="git-rail-svg" width="60" height="34" viewBox="0 0 60 34">
+                            {/* Rail Lines */}
+                            <line x1="12" y1="0" x2="12" y2="34" stroke="#2a2a28" strokeWidth="2" />
+                            <line x1="28" y1="0" x2="28" y2="34" stroke="#2a2a28" strokeWidth="2" />
+                            <line x1="44" y1="0" x2="44" y2="34" stroke="#2a2a28" strokeWidth="2" />
+                            
+                            {/* Active Branch Lane Line */}
+                            <line 
+                              x1={12 + laneIndex * 16} 
+                              y1="0" 
+                              x2={12 + laneIndex * 16} 
+                              y2="34" 
+                              stroke={laneColor} 
+                              strokeWidth="2.5" 
+                            />
+
+                            {/* Merge Connecting Branch Arc */}
+                            {commit.is_merge && (
+                              <path 
+                                d={`M 12 34 Q 20 17 ${12 + laneIndex * 16} 17`} 
+                                fill="none" 
+                                stroke="#a855f7" 
+                                strokeWidth="2" 
+                              />
+                            )}
+
+                            {/* Commit Node Circle */}
+                            {hasIncidents && (
+                              <circle 
+                                cx={12 + laneIndex * 16} 
+                                cy="17" 
+                                r="8" 
+                                fill="none" 
+                                stroke="#ef4444" 
+                                strokeWidth="2" 
+                                className="incident-glow-ring"
+                              />
+                            )}
+                            <circle 
+                              cx={12 + laneIndex * 16} 
+                              cy="17" 
+                              r={commit.branch_refs?.length ? "5.5" : "4.5"} 
+                              fill={commit.branch_refs?.length ? "#121212" : (hasIncidents ? "#ef4444" : laneColor)} 
+                              stroke={hasIncidents ? "#ef4444" : laneColor} 
+                              strokeWidth="2.5" 
+                            />
+                          </svg>
+                        </div>
+
+                        {/* Description & Refs Column */}
+                        <div className="col-desc">
+                          {/* Branch Refs */}
+                          {commit.branch_refs?.map(ref => (
+                            <a 
+                              key={ref} 
+                              href={`https://github.com/${selectedRepo}/tree/${ref.replace('origin/', '')}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className={`ref-pill branch ${ref.startsWith('origin/') ? 'remote' : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                              title={`View ${ref} on GitHub`}
+                            >
+                              <GitBranch size={10} />
+                              <span>{ref}</span>
+                            </a>
+                          ))}
+
+                          {/* Tag Refs */}
+                          {commit.tag && (
+                            <a 
+                              href={`https://github.com/${selectedRepo}/releases/tag/${commit.tag}`}
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="ref-pill tag"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`View tag ${commit.tag} on GitHub`}
+                            >
+                              <Tag size={10} />
+                              <span>{commit.tag}</span>
+                            </a>
+                          )}
+
+                          {/* Commit Subject Link */}
+                          <a 
+                            href={commit.commit_url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="commit-subject-link"
+                            onClick={(e) => e.stopPropagation()}
+                            title={commit.full_message}
+                          >
+                            {commit.message}
+                          </a>
+                        </div>
+
+                        {/* Defects Column with Dropdown Toggle */}
+                        <div className="col-defects">
+                          {hasIncidents ? (
+                            <button 
+                              className={`defects-dropdown-btn ${isExpanded ? 'active' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                toggleCommitDropdown(commit.sha)
+                              }}
+                              title="Toggle Defect Incidents Dropdown"
+                            >
+                              <span className="defect-dot"></span>
+                              <span>{commit.incidents.length} {commit.incidents.length === 1 ? 'Defect' : 'Defects'}</span>
+                              <ChevronDown size={11} className={`chevron-icon ${isExpanded ? 'rotated' : ''}`} />
+                            </button>
+                          ) : (
+                            <span className="no-defects-dash">—</span>
+                          )}
+                        </div>
+
+                        {/* Author Column */}
+                        <div className="col-author">
+                          <a 
+                            href={commit.author_url} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="author-link"
+                            onClick={(e) => e.stopPropagation()}
+                            title={`View @${commit.author} on GitHub`}
+                          >
+                            {commit.avatar_url && <img src={commit.avatar_url} alt="" className="author-avatar-img"/>}
+                            <span>{commit.author}</span>
+                          </a>
+                        </div>
+
+                        {/* Date Column */}
+                        <div className="col-date">
+                          <span title={commit.date}>
                             {new Date(commit.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        {commit.tag && (
-                          <span className="tag-pill"><Tag size={10}/> {commit.tag}</span>
-                        )}
+
+                        {/* Commit SHA Column */}
+                        <div className="col-sha">
+                          <div className="sha-link-group">
+                            <a 
+                              href={commit.commit_url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="sha-code-link"
+                              onClick={(e) => e.stopPropagation()}
+                              title="Open commit on GitHub"
+                            >
+                              <code>{commit.short_sha}</code>
+                            </a>
+                            <button 
+                              className="copy-sha-btn" 
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                copyToClipboard(commit.sha, commit.sha)
+                              }}
+                              title="Copy full SHA"
+                            >
+                              {copiedSha === commit.sha ? <Check size={10} className="check-green"/> : <Copy size={10}/>}
+                            </button>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="commit-msg">{commit.message}</div>
+                      {/* Dropdown Nodes for Pinned Defects */}
+                      <AnimatePresence>
+                        {hasIncidents && isExpanded && (
+                          <motion.div 
+                            className="commit-defects-dropdown-panel"
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.18 }}
+                          >
+                            <div className="dropdown-indicator-rail" />
+                            <div className="dropdown-nodes-container">
+                              {commit.incidents.map((inc) => (
+                                <div 
+                                  key={inc.id} 
+                                  className={`defect-node-card ${selectedIncident?.id === inc.id ? 'active-incident' : ''}`}
+                                  onClick={() => setSelectedIncident(inc)}
+                                >
+                                  <div className="defect-node-left">
+                                    <span className={`status-badge ${inc.state}`}>
+                                      {inc.state === 'closed' ? <CheckCircle2 size={11}/> : <span className="green-dot"/>}
+                                      {inc.state?.toUpperCase()}
+                                    </span>
 
-                      {/* Pinned Failure Reports for this commit node */}
-                      {commitIncidents.length > 0 && (
-                        <div className="pinned-incidents-container">
-                          {commitIncidents.map(inc => (
-                            <div 
-                              key={inc.id} 
-                              className={`incident-pill ${selectedIncident?.id === inc.id ? 'active' : ''}`}
-                              onClick={() => handleInvestigateIncident(inc)}
-                            >
-                              <div className="pill-left">
-                                <AlertTriangle size={13} className="incident-icon"/>
-                                <span className="incident-badge">
-                                  {inc.source === 'github_discussion' ? 'Discussion' : 'Issue'} #{inc.number}
-                                </span>
-                                <span className="incident-title-text">{inc.title}</span>
-                              </div>
-                              <button className="investigate-trigger">
-                                <span>Inspect Culprit</span>
-                                <ChevronRight size={13}/>
-                              </button>
+                                    <span className="kind-badge">
+                                      {inc.source === 'github_discussion' ? 'Discussion' : 'Issue'} #{inc.number}
+                                    </span>
+
+                                    <a 
+                                      href={inc.url} 
+                                      target="_blank" 
+                                      rel="noreferrer" 
+                                      className="defect-title-link"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="Open defect on GitHub"
+                                    >
+                                      <span>{inc.title}</span>
+                                      <ExternalLink size={11} className="ext-icon"/>
+                                    </a>
+                                  </div>
+
+                                  <div className="defect-node-right">
+                                    {inc.author && (
+                                      <a 
+                                        href={inc.author_url} 
+                                        target="_blank" 
+                                        rel="noreferrer" 
+                                        className="defect-author-link"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        @{inc.author}
+                                      </a>
+                                    )}
+
+                                    <span className="defect-date-label">
+                                      <Clock size={10}/>
+                                      {inc.effective_date ? new Date(inc.effective_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''}
+                                    </span>
+
+                                    <button 
+                                      className="inspect-action-btn"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleInvestigateIncident(inc)
+                                      }}
+                                    >
+                                      <Sparkles size={11}/>
+                                      <span>Inspect Culprit</span>
+                                      <ChevronRight size={11}/>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
+              </div>
             </div>
           )}
         </section>
@@ -351,7 +585,16 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
               <span>AI Culprit Detective &amp; Synergies</span>
             </div>
             {selectedIncident && (
-              <span className="target-pill">#{selectedIncident.number}</span>
+              <a 
+                href={selectedIncident.url} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="target-pill-link"
+                title="Open Incident on GitHub"
+              >
+                <span>#{selectedIncident.number}</span>
+                <ExternalLink size={10}/>
+              </a>
             )}
           </div>
 
@@ -360,7 +603,7 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
               <div className="empty-inspector">
                 <ShieldAlert size={36}/>
                 <h4>Select a Defect Incident</h4>
-                <p>Click on any pinned failure badge on the Git timeline to trace its root-cause regression commit.</p>
+                <p>Click on any defect dropdown node on the Git timeline to trace its root-cause regression commit.</p>
               </div>
             ) : (
               <div className="incident-details">
@@ -423,7 +666,16 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
                       </div>
                       
                       <div className="culprit-commit-box">
-                        <code className="culprit-sha">{investigationResult.culprit_short_sha}</code>
+                        <a 
+                          href={investigationResult.culprit_commit_url || `https://github.com/${selectedRepo}/commit/${investigationResult.culprit_sha}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="culprit-sha-link"
+                          title="View culprit commit on GitHub"
+                        >
+                          <code className="culprit-sha">{investigationResult.culprit_short_sha}</code>
+                          <ExternalLink size={11}/>
+                        </a>
                         <span className="culprit-author">by {investigationResult.culprit_author}</span>
                         <div className="culprit-msg">{investigationResult.culprit_message}</div>
                       </div>
@@ -439,7 +691,17 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
                         <h5><Code2 size={13}/> Responsible Files:</h5>
                         <div className="file-tags">
                           {investigationResult.affected_files.map(f => (
-                            <code key={f} className="file-pill">{f}</code>
+                            <a 
+                              key={f} 
+                              href={`https://github.com/${selectedRepo}/blob/${investigationResult.culprit_sha || 'dev'}/${f}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="file-pill-link"
+                              title={`Inspect ${f} on GitHub`}
+                            >
+                              <code>{f}</code>
+                              <ExternalLink size={10}/>
+                            </a>
                           ))}
                         </div>
                       </div>
@@ -455,10 +717,16 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
                         A single patch reversing or validating <code>{investigationResult.affected_files?.[0] || 'the affected module'}</code> will simultaneously resolve:
                       </p>
                       <div className="synergy-items">
-                        <div className="synergy-pill">
+                        <a 
+                          href={selectedIncident.url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="synergy-pill-link"
+                        >
                           <CheckCircle2 size={12}/>
-                          <span>Discussion #{selectedIncident.number} ({selectedIncident.title.slice(0, 35)}...)</span>
-                        </div>
+                          <span>{selectedIncident.source === 'github_discussion' ? 'Discussion' : 'Issue'} #{selectedIncident.number} ({selectedIncident.title.slice(0, 35)}...)</span>
+                          <ExternalLink size={10}/>
+                        </a>
                         <div className="synergy-pill">
                           <CheckCircle2 size={12}/>
                           <span>Related regression in <code>clean_products</code> input contracts</span>
@@ -469,7 +737,7 @@ export function GitTimeSeriesDashboard({ authState, onOpenAuth, onBackToLanding 
                     {/* One-Click Resolution Button */}
                     <div className="action-footer">
                       <a 
-                        href={`https://github.com/${selectedRepo}/discussions/${selectedIncident.number}`}
+                        href={`${selectedIncident.url}#issuecomment-new`}
                         target="_blank" 
                         rel="noreferrer"
                         className="button button-action button-wide"

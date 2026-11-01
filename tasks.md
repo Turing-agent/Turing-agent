@@ -1,9 +1,13 @@
 1. improve the cross-issue validation system by texting on eventyay_sandbox, 
     optimize comment contecxt window size based on requirement type, the cuurent system ssems to be listing oyut all open issue in the commnet and then teeling the conflicting ones, which is kinda inappropriate
 
-2. utilize the discussions window of Turing  to implement Jira connection (scope-refinement)
+2. utilize the discussions window of Turing to implement Jira connection (scope-refinement) -- done
+   - Scrapes open Jira tickets queue via TinyFish Fetch API / Jira REST API
+   - Runs maintainer validation & TinyFish cross-issue correlation and posts as INTERNAL NOTE (private to maintainers)
+   - Interactive commands ('Hi Turing, ...', 'RW', 'approved') handled via public Reply to Customer
+   - Attaches 'source: Jira' label when Turing creates issues from Jira tickets upon 'RW', and 'source: GitHub Discussion' for discussions
 
-3. remove the reproduction node system for ui bugs (because of irrelevance in bigger systems, can't be trusted)
+3. remove the reproduction node system for ui bugs (because of irrelevance in bigger systems, can't be trusted)   -- done
 
 4. so can we implement something like sentry, further we make a dashbaord which we can connect without github account, and then add a specific repo and connect other tools like Jira, Gitlab, Github discussions, these all application where developers, users and other will report failures bug etc. , Tinyfish will scrape all reported content, identifying the version of the codebase from which its reported, and make a time series database in route with the commits and merges data, so on the dahbaord mainatiner can see the failure and the segment of the git graph it occured on. Of cousrese I have implemented a bot system whre it checks for other unworked issue to check if the resolution that issue may resolve this issue or not, often called the one rocks two kills idiom, but here the dashbaord scenario is diffenrent, here creating a complete commity base dverisoning history, it tells thta maintainer at what part of the previous commit may have influenced the latets report, it investigates the git graph to find out the last changes commits on teh influenceing issue area, to find out the probabble guiltty of the issue. 
 

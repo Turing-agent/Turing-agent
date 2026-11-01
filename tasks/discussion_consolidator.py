@@ -64,20 +64,30 @@ def consolidate_discussion_to_issue(
     discussion_body: str,
     approver: str,
     discussion_url: Optional[str] = None,
-    token: Optional[str] = None
+    token: Optional[str] = None,
+    source: str = "GitHub Discussion",
+    jira_ticket_key: Optional[str] = None,
+    jira_ticket_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Consolidates the initial discussion post and all follow-up thread comments
-    into a structured, professional, clean GitHub Issue.
+    Consolidates the initial discussion/ticket post and all follow-up thread comments
+    into a structured, professional, clean GitHub Issue with source provenance.
     """
-    discussion_url = discussion_url or f"https://github.com/{repo}/discussions/{discussion_number}"
-    raw_comments = fetch_discussion_comments(repo, discussion_number, token)
+    is_jira = source.lower() == "jira" or bool(jira_ticket_key)
+    source_label = "source: Jira" if is_jira else "source: GitHub Discussion"
 
-    # Format thread comments for context
-    formatted_comments = []
-    for c in raw_comments:
-        formatted_comments.append(f"@{c['author']}:\n{c['body']}")
-    thread_text = "\n\n---\n\n".join(formatted_comments)
+    if is_jira:
+        origin_url = jira_ticket_url or f"https://jira.atlassian.net/browse/{jira_ticket_key or 'TICKET'}"
+        thread_text = f"Origin: Jira Ticket {jira_ticket_key or 'Queue'} ({origin_url})\nReporter: @{approver}"
+    else:
+        discussion_url = discussion_url or f"https://github.com/{repo}/discussions/{discussion_number}"
+        raw_comments = fetch_discussion_comments(repo, discussion_number, token) if discussion_number else []
+
+        # Format thread comments for context
+        formatted_comments = []
+        for c in raw_comments:
+            formatted_comments.append(f"@{c['author']}:\n{c['body']}")
+        thread_text = "\n\n---\n\n".join(formatted_comments)
 
     combined_context = f"{discussion_body}\n\n{thread_text}"
 
@@ -122,7 +132,7 @@ def consolidate_discussion_to_issue(
             )
 
             # Try models in priority order
-            for model_name in ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]:
+            for model_name in ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "openai/gpt-oss-20b"]:
                 try:
                     resp = client.chat.completions.create(
                         model=model_name,
@@ -195,15 +205,30 @@ def consolidate_discussion_to_issue(
             "- [ ] `README.md` updated with a Contributing section.",
         ])
 
-        footer = f"\n\n---\n*Automated issue consolidated by Turing-agent from Discussion [#{discussion_number}]({discussion_url}) with maintainer approval by @{approver}.*"
+        if is_jira:
+            footer = f"\n\n---\n*Automated issue consolidated by Turing-agent from Jira Ticket [{jira_ticket_key or 'Ticket'}]({jira_ticket_url or ''}) with approval by @{approver}.*"
+        else:
+            footer = f"\n\n---\n*Automated issue consolidated by Turing-agent from Discussion [#{discussion_number}]({discussion_url}) with maintainer approval by @{approver}.*"
+        
         final_body = "\n".join(body_parts) + footer
 
         result = {
             "title": clean_title,
             "body": final_body,
             "files_to_modify": files,
-            "labels": ["enhancement", "ready-for-work"]
+            "labels": ["enhancement", "ready-for-work", source_label]
         }
+
+    # Ensure source_label is attached in labels and mutual exclusivity preserved
+    if "labels" in result and isinstance(result["labels"], list):
+        if is_jira and "source: GitHub Discussion" in result["labels"]:
+            result["labels"].remove("source: GitHub Discussion")
+        elif not is_jira and "source: Jira" in result["labels"]:
+            result["labels"].remove("source: Jira")
+        if source_label not in result["labels"]:
+            result["labels"].append(source_label)
+    else:
+        result["labels"] = ["ready-for-work", source_label]
 
     # Ensure body does not exceed 2,500 chars (Token safety guardrail)
     if len(result["body"]) > 2500:
