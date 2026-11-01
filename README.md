@@ -161,13 +161,18 @@ flowchart TD
 - Patches existing issue with consolidated title and body
 - Enforces 2,500 character token safety limit
 
-#### 5. Jira integration
+#### 5. Cleaned-issue follow-up monitoring (TinyFish)
+- Once an `RW` command has created or updated a cleaned-up GitHub issue, TinyFish monitors that issue for further conversation.
+- If follow-up discussion occurs, a 24-hour timer runs before the additional context is consolidated.
+- When the timer expires, the cleaned-up context is automatically attached as a sub-issue to the existing cleaned-up issue in GitHub Issues.
+
+#### 6. Jira integration
 - **Triage** (`POST /jira/triage`): Posts maintainer validation + TinyFish correlation as INTERNAL NOTE
 - **Comment handling** (`POST /jira/comment`): Processes `RW`, `approved`, and `Hi Turing` commands
 - Creates GitHub Issues with `source: Jira` label
 - Tracks source provenance via labels
 
-#### 6. Git regression intelligence
+#### 7. Git regression intelligence
 - **Git DAG** (`GET /api/git-dag`): Fetches commit DAG with incidents pinned to timeline
 - **Culprit detection** (`POST /api/investigate-culprit`): Semantic regression analysis to identify guilty commit
 - Visualizes swimlane graph with authentic Git branch rendering
@@ -422,6 +427,7 @@ Import [`turing-agent-workflow.json`](turing-agent-workflow.json) into n8n:
    - **Turing Chat**: Check for mention → call `/chat-turing` → post reply
    - **Maintainer Approved**: Create issue → post progress → call `/resolve-issue` → open PR
    - **RW Command**: Call `/consolidate-discussion` → patch issue
+   - **Cleaned-issue follow-up**: TinyFish monitors an existing issue created or cleaned up through `RW`. When new conversation is detected, after a 24-hour timer it consolidates that follow-up context and attaches it as a sub-issue to the cleaned-up issue in GitHub Issues.
 
 ### Invitation workflow
 
