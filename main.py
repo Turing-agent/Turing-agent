@@ -1874,6 +1874,24 @@ async def post_jira_webhook(request: Request):
             comment = body.get("comment", {})
             c_body = comment.get("body", "")
             c_author = comment.get("author", {}).get("displayName", "user")
+            c_lower = c_body.lower() if c_body else ""
+
+            # Ignore empty comments or Turing self-generated bot comments
+            if not c_body or any(sig in c_lower for sig in [
+                "turing-agent autonomous",
+                "turing internal maintainer review",
+                "turing internal",
+                "<!-- turing",
+                "turing-bot",
+                "github issue raised — ready for work",
+                "github issue raised",
+                "maintainer approval received",
+                "turing-agent has received maintainer approval",
+                "🤖"
+            ]):
+                logger.info(f"[jira/webhook] Ignored self-generated or empty bot comment on {key}.")
+                return {"status": "ignored", "reason": "bot_comment"}
+
             return handle_jira_comment(
                 ticket_key=key,
                 comment_body=c_body,

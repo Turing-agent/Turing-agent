@@ -41,7 +41,7 @@ def test_jira_triage():
     )
     assert res["status"] == "success"
     assert res["is_internal"] is True
-    assert "🔒 **[Turing Internal Maintainer Review" in res["internal_note"]
+    assert "Turing-Agent Autonomous QA Review" in res["internal_note"]
     print("  ✓ Triage generated Internal Note successfully.")
 
 
@@ -83,9 +83,46 @@ def test_discussion_source_label():
     print(f"  ✓ Discussion labels: {res['labels']}")
 
 
+def test_jira_suppression_and_markup():
+    from tasks.jira_integration import markdown_to_jira_markup
+    print("5. Testing Jira markup conversion & comment suppression...")
+    sample_md = "### Header\nHere is code:\n```html\n<div>Test</div>\n```\n- [x] Done\n> Quote"
+    jira_txt = markdown_to_jira_markup(sample_md)
+    assert "{code:html}" in jira_txt
+    assert "h3. Header" in jira_txt
+    assert "(/) Done" in jira_txt
+    assert "{quote}" in jira_txt
+    print("  ✓ Markdown correctly converted to Jira Wiki Syntax.")
+
+    # Test random comment without Turing mention -> ignored
+    res_random = handle_jira_comment(
+        ticket_key="SUP-7",
+        comment_body="Just checking in on this issue.",
+        comment_author="team.member",
+        ticket_summary="Spacing issue",
+        ticket_description="CSS spacing broken"
+    )
+    assert res_random["status"] == "ignored"
+    assert res_random["reason"] == "turing_not_invoked"
+    print("  ✓ Non-Turing comment safely ignored (no unwanted reply).")
+
+    # Test bot self-comment -> ignored
+    res_self = handle_jira_comment(
+        ticket_key="SUP-7",
+        comment_body="h3. 🤖 Turing-Agent Autonomous QA Review\nSome report",
+        comment_author="Akshat Jain",
+        ticket_summary="Spacing issue",
+        ticket_description="CSS spacing broken"
+    )
+    assert res_self["status"] == "ignored"
+    assert res_self["reason"] == "bot_self_comment"
+    print("  ✓ Bot self-comment safely ignored (no feedback loop).")
+
+
 if __name__ == "__main__":
     test_jira_queue()
     test_jira_triage()
     test_jira_rw_command()
     test_discussion_source_label()
+    test_jira_suppression_and_markup()
     print("\n🎉 ALL JIRA & DISCUSSION WORKFLOW TESTS PASSED!")
