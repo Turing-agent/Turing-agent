@@ -123,30 +123,42 @@ def scrape_jira_open_queue(
     # Try direct Jira REST Search API
     if "Authorization" in headers:
         try:
-            search_url = f"{base_url}/rest/api/2/search"
-            params = {
-                "jql": jql,
-                "maxResults": limit,
-                "fields": "summary,description,reporter,created,status,comment"
-            }
-            res = requests.get(search_url, params=params, headers=headers, timeout=15)
-            if res.ok:
-                data = res.json()
-                tickets = []
-                for issue in data.get("issues", []):
-                    key = issue.get("key")
-                    fields = issue.get("fields", {})
-                    tickets.append({
-                        "key": key,
-                        "summary": fields.get("summary", ""),
-                        "description": fields.get("description", "") or "",
-                        "reporter": fields.get("reporter", {}).get("displayName") or fields.get("reporter", {}).get("name", "customer"),
-                        "created": fields.get("created"),
-                        "status": fields.get("status", {}).get("name", "Open"),
-                        "url": f"{base_url}/browse/{key}",
-                        "source": "jira"
-                    })
-                return tickets
+            for endpoint in ["/rest/api/3/search/jql", "/rest/api/3/search", "/rest/api/2/search"]:
+                search_url = f"{base_url}{endpoint}"
+                params = {
+                    "jql": jql,
+                    "maxResults": limit,
+                    "fields": "summary,description,reporter,created,status,comment"
+                }
+                res = requests.get(search_url, params=params, headers=headers, timeout=15)
+                if res.ok:
+                    data = res.json()
+                    tickets = []
+                    for issue in data.get("issues", []):
+                        key = issue.get("key")
+                        fields = issue.get("fields", {})
+                        desc = fields.get("description", "")
+                        if isinstance(desc, dict):
+                            try:
+                                text_parts = []
+                                for block in desc.get("content", []):
+                                    for item in block.get("content", []):
+                                        if item.get("text"):
+                                            text_parts.append(item.get("text"))
+                                desc = "\n".join(text_parts)
+                            except Exception:
+                                desc = str(desc)
+                        tickets.append({
+                            "key": key,
+                            "summary": fields.get("summary", ""),
+                            "description": desc or "",
+                            "reporter": fields.get("reporter", {}).get("displayName") or fields.get("reporter", {}).get("name", "customer"),
+                            "created": fields.get("created"),
+                            "status": fields.get("status", {}).get("name", "Open"),
+                            "url": f"{base_url}/browse/{key}",
+                            "source": "jira"
+                        })
+                    return tickets
         except Exception as e:
             logger.warning(f"[Jira] Search API returned error: {e}")
 

@@ -14,3 +14,5 @@ temp/*
 node_modules/
 dist/
 !frontend/dist/
+
+credentials.md
