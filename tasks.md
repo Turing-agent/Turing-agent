@@ -1,7 +1,11 @@
 1. improve the cross-issue validation system by texting on eventyay_sandbox, 
     optimize comment contecxt window size based on requirement type, the cuurent system ssems to be listing oyut all open issue in the commnet and then teeling the conflicting ones, which is kinda inappropriate
 
-2. utilize the discussions window of Turing  to implement Jira connection (scope-refinement)
+2. utilize the discussions window of Turing to implement Jira connection (scope-refinement) -- done
+   - Scrapes open Jira tickets queue via TinyFish Fetch API / Jira REST API
+   - Runs maintainer validation & TinyFish cross-issue correlation and posts as INTERNAL NOTE (private to maintainers)
+   - Interactive commands ('Hi Turing, ...', 'RW', 'approved') handled via public Reply to Customer
+   - Attaches 'source: Jira' label when Turing creates issues from Jira tickets upon 'RW', and 'source: GitHub Discussion' for discussions
 
 3. remove the reproduction node system for ui bugs (because of irrelevance in bigger systems, can't be trusted)   -- done
 

@@ -62,6 +62,12 @@ try:
         consolidate_discussion_to_issue,
         patch_github_issue
     )
+    from tasks.jira_integration import (
+        triage_jira_ticket,
+        handle_jira_comment,
+        scrape_jira_open_queue,
+        post_jira_comment
+    )
 except ImportError:
     from vision_module import (
         analyze_video_and_discussion,
@@ -88,6 +94,12 @@ except ImportError:
     from discussion_consolidator import (
         consolidate_discussion_to_issue,
         patch_github_issue
+    )
+    from jira_integration import (
+        triage_jira_ticket,
+        handle_jira_comment,
+        scrape_jira_open_queue,
+        post_jira_comment
     )
 
 # Configure logging
@@ -1642,12 +1654,15 @@ def check_discussion_issue(payload: CheckDiscussionIssuePayload):
 
 class RaiseIssueOnlyPayload(BaseModel):
     repository: str
-    discussion_number: int
+    discussion_number: Optional[Any] = 0
     discussion_title: str
     discussion_body: str
-    discussion_node_id: str   # GraphQL node ID for posting the marker comment
+    discussion_node_id: Optional[str] = None   # GraphQL node ID for posting the marker comment
     discussion_url: Optional[str] = None
-    requester: str            # maintainer who typed RW
+    requester: str                            # maintainer who typed RW
+    source: Optional[str] = "GitHub Discussion"  # "GitHub Discussion" or "Jira"
+    jira_ticket_key: Optional[str] = None
+    jira_ticket_url: Optional[str] = None
 
 @app.post("/raise-issue-only")
 def raise_issue_only(payload: RaiseIssueOnlyPayload):
@@ -1668,15 +1683,18 @@ def raise_issue_only(payload: RaiseIssueOnlyPayload):
         f"https://github.com/{payload.repository}/discussions/{payload.discussion_number}"
 
     try:
-        # Step 1 — Consolidate discussion → clean issue spec
+        # Step 1 — Consolidate discussion/ticket → clean issue spec
         result = consolidate_discussion_to_issue(
             repo=payload.repository,
-            discussion_number=payload.discussion_number,
+            discussion_number=payload.discussion_number or 0,
             discussion_title=payload.discussion_title,
             discussion_body=payload.discussion_body,
             approver=payload.requester,
             discussion_url=disc_url,
-            token=github_token
+            token=github_token,
+            source=payload.source or "GitHub Discussion",
+            jira_ticket_key=payload.jira_ticket_key,
+            jira_ticket_url=payload.jira_ticket_url
         )
 
         # Step 2 — Create the GitHub issue via REST
@@ -1700,31 +1718,40 @@ def raise_issue_only(payload: RaiseIssueOnlyPayload):
         issue_number = issue["number"]
         issue_url = issue["html_url"]
 
-        # Step 3 — Post marker comment on discussion (invisible HTML comment + visible message)
-        comment_body = (
-            f"<!-- turing-raised-issue #{issue_number} {issue_url} -->\n\n"
-            f"<!-- turing-bot -->\n\n"
-            f"### 📋 Issue Raised — Ready for Work\n\n"
-            f"Issue [#{issue_number}]({issue_url}) has been raised and is ready to be worked upon. "
-            f"The discussion has been consolidated into a structured issue specification.\n\n"
-            f"> To trigger an **automated PR** with a code fix, comment `approved`."
-        )
+        # Step 3 — Post marker/acknowledgement comment
+        if payload.source and payload.source.lower() == "jira" and payload.jira_ticket_key:
+            jira_reply = (
+                f"### 📋 GitHub Issue Raised — Ready for Work\n\n"
+                f"Issue [#{issue_number}]({issue_url}) has been created on GitHub repository **`{payload.repository}`** with label `source: Jira`.\n\n"
+                f"The Jira ticket specification has been consolidated and mapped to the codebase.\n\n"
+                f"> To trigger an automated PR with a code fix, reply with `approved`."
+            )
+            post_jira_comment(payload.jira_ticket_key, jira_reply, internal=False)
+        elif payload.discussion_node_id:
+            comment_body = (
+                f"<!-- turing-raised-issue #{issue_number} {issue_url} -->\n\n"
+                f"<!-- turing-bot -->\n\n"
+                f"### 📋 Issue Raised — Ready for Work\n\n"
+                f"Issue [#{issue_number}]({issue_url}) has been raised and is ready to be worked upon. "
+                f"The discussion has been consolidated into a structured issue specification.\n\n"
+                f"> To trigger an **automated PR** with a code fix, comment `approved`."
+            )
 
-        gql_mutation = """
-        mutation($id: ID!, $body: String!) {
-          addDiscussionComment(input: {discussionId: $id, body: $body}) {
-            comment { id url }
-          }
-        }
-        """
-        requests.post(
-            "https://api.github.com/graphql",
-            json={"query": gql_mutation, "variables": {
-                "id": payload.discussion_node_id,
-                "body": comment_body
-            }},
-            headers=headers, timeout=15
-        )
+            gql_mutation = """
+            mutation($id: ID!, $body: String!) {
+              addDiscussionComment(input: {discussionId: $id, body: $body}) {
+                comment { id url }
+              }
+            }
+            """
+            requests.post(
+                "https://api.github.com/graphql",
+                json={"query": gql_mutation, "variables": {
+                    "id": payload.discussion_node_id,
+                    "body": comment_body
+                }},
+                headers=headers, timeout=15
+            )
 
         logger.info(
             f"[raise-issue-only] Issue #{issue_number} created for "
@@ -1744,6 +1771,122 @@ def raise_issue_only(payload: RaiseIssueOnlyPayload):
             status_code=500,
             content={"status": "error", "message": str(e), "traceback": traceback.format_exc()}
         )
+
+
+# ---------------------------------------------------------------------------
+# Jira Integration Endpoints (Internal Note Triage & Customer Reply Commands)
+# ---------------------------------------------------------------------------
+
+class JiraTriagePayload(BaseModel):
+    ticket_key: str = Field(..., description="Jira issue key e.g. EVY-104")
+    summary: str = Field(..., description="Jira issue summary")
+    description: Optional[str] = Field("", description="Jira issue description")
+    reporter: Optional[str] = Field("customer", description="Reporter displayName")
+    repository: Optional[str] = Field("eventyaysandbox/eventyay_Sandbox", description="Target GitHub repo")
+    jira_url: Optional[str] = Field(None, description="Jira host base URL")
+
+
+class JiraChatPayload(BaseModel):
+    ticket_key: str = Field(..., description="Jira issue key e.g. EVY-104")
+    comment_body: str = Field(..., description="Comment text e.g. 'Hi Turing, ...' or 'RW'")
+    comment_author: str = Field("user", description="Author of the comment")
+    ticket_summary: str = Field(..., description="Jira issue summary")
+    ticket_description: Optional[str] = Field("", description="Jira issue description")
+    repository: Optional[str] = Field("eventyaysandbox/eventyay_Sandbox", description="Target GitHub repo")
+    ticket_url: Optional[str] = Field(None, description="Jira ticket URL")
+
+
+@app.post("/jira/triage")
+def post_jira_triage(payload: JiraTriagePayload):
+    """
+    Triages an open Jira ticket:
+    1. Generates Turing maintainer validation review.
+    2. Correlates components & previous issues via TinyFish.
+    3. Attaches review to the Jira ticket as an INTERNAL NOTE (private to maintainers).
+    """
+    return triage_jira_ticket(
+        ticket_key=payload.ticket_key,
+        summary=payload.summary,
+        description=payload.description or "",
+        reporter=payload.reporter or "customer",
+        repository=payload.repository or "eventyaysandbox/eventyay_Sandbox",
+        jira_url=payload.jira_url
+    )
+
+
+@app.post("/jira/chat")
+def post_jira_chat(payload: JiraChatPayload):
+    """
+    Handles interactive comments & commands on Jira tickets:
+    - 'RW': Synthesizes clean GitHub Issue with label 'source: Jira' and replies to customer.
+    - 'approved': Triggers code fix workflow and replies to customer.
+    - 'Hi Turing, ...': Processes Q&A via Groq intent engine and posts reply to customer.
+    """
+    return handle_jira_comment(
+        ticket_key=payload.ticket_key,
+        comment_body=payload.comment_body,
+        comment_author=payload.comment_author or "user",
+        ticket_summary=payload.ticket_summary,
+        ticket_description=payload.ticket_description or "",
+        repository=payload.repository or "eventyaysandbox/eventyay_Sandbox",
+        ticket_url=payload.ticket_url
+    )
+
+
+@app.get("/jira/queue")
+def get_jira_queue(project: Optional[str] = None, limit: int = 10):
+    """Scrapes open Jira queue tickets via TinyFish / Jira REST API."""
+    return {
+        "status": "success",
+        "project": project,
+        "tickets": scrape_jira_open_queue(project_key=project, limit=limit)
+    }
+
+
+@app.post("/jira/webhook")
+async def post_jira_webhook(request: Request):
+    """
+    Direct Jira Webhook endpoint handling both issue creation and comment events:
+    - jira:issue_created -> automatically triages as an Internal Note
+    - comment_created -> handles 'Hi Turing, ...', 'RW', and 'approved' commands
+    """
+    try:
+        body = await request.json()
+        webhook_event = body.get("webhookEvent", "")
+        issue = body.get("issue", {})
+        key = issue.get("key", "")
+        fields = issue.get("fields", {})
+        summary = fields.get("summary", "")
+        desc = fields.get("description", "") or ""
+        reporter = fields.get("reporter", {}).get("displayName", "customer")
+        target_repo = os.getenv("DEFAULT_REPOSITORY", "eventyaysandbox/eventyay_Sandbox")
+
+        if webhook_event == "jira:issue_created":
+            return triage_jira_ticket(
+                ticket_key=key,
+                summary=summary,
+                description=desc,
+                reporter=reporter,
+                repository=target_repo
+            )
+
+        if webhook_event == "comment_created":
+            comment = body.get("comment", {})
+            c_body = comment.get("body", "")
+            c_author = comment.get("author", {}).get("displayName", "user")
+            return handle_jira_comment(
+                ticket_key=key,
+                comment_body=c_body,
+                comment_author=c_author,
+                ticket_summary=summary,
+                ticket_description=desc,
+                repository=target_repo
+            )
+
+        return {"status": "ignored", "event": webhook_event}
+    except Exception as e:
+        logger.error(f"[jira/webhook] Error handling webhook: {e}", exc_info=True)
+        return {"status": "error", "message": str(e)}
 
 
 class InvestigateCulpritPayload(BaseModel):
