@@ -1,46 +1,1200 @@
 {
-  "id": "OLD6gJWpGfDPjae2",
   "name": "GitHub Discussions AI QA Bot",
-  "active": true,
-  "isArchived": false,
-  "versionId": "4daaab0c-2e5f-4b7d-b514-95794b2ec50c",
-  "activeVersionId": "4daaab0c-2e5f-4b7d-b514-95794b2ec50c",
-  "triggerCount": 2,
-  "nodeCount": 32,
-  "createdAt": "2026-10-28T10:06:01.325Z",
-  "updatedAt": "2026-10-31T19:31:32.099Z",
-  "settings": {
-    "executionOrder": "v1",
-    "binaryMode": "separate",
-    "availableInMCP": true,
-    "saveDataErrorExecution": "all",
-    "saveDataSuccessExecution": "all"
-  },
-  "tags": [],
-  "parentFolderId": null,
-  "scopes": [
-    "execution:delete",
-    "execution:list",
-    "execution:read",
-    "execution:reveal",
-    "workflow:create",
-    "workflow:delete",
-    "workflow:disableRedaction",
-    "workflow:enableRedaction",
-    "workflow:execute",
-    "workflow:execute-chat",
-    "workflow:export",
-    "workflow:import",
-    "workflow:list",
-    "workflow:move",
-    "workflow:publish",
-    "workflow:read",
-    "workflow:share",
-    "workflow:unpublish",
-    "workflow:unshare",
-    "workflow:update"
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Turing-agent"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Turing-agent"
+        },
+        "events": [
+          "*"
+        ],
+        "options": {}
+      },
+      "id": "952df1e7-bf67-4854-8ddf-3d93b475394a",
+      "name": "GitHub Discussion Events",
+      "type": "n8n-nodes-base.githubTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ],
+      "webhookId": "09ab6889-7d9c-48f3-8a56-d78b415acd14",
+      "disabled": true,
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "wl2huRSpI9Hw2viR",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
+                    "rightValue": "discussion",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "New Bug Report"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
+                    "rightValue": "discussion_comment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Turing Chat"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
+                    "rightValue": "discussion_comment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Maintainer Approval"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
+                    "rightValue": "discussion_comment",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  },
+                  {
+                    "leftValue": "={{ $json.body.action }}",
+                    "rightValue": "created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "RW Command"
+            }
+          ]
+        },
+        "options": {
+          "allMatchingOutputs": true
+        }
+      },
+      "id": "7b91a761-a5d2-4a80-a7e6-e7c6b716b9a9",
+      "name": "Route by Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        224,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.comment.body }}",
+              "operator": {
+                "operation": "contains",
+                "type": "string"
+              },
+              "rightValue": "Turing"
+            },
+            {
+              "leftValue": "={{ $json.body.comment.body }}",
+              "operator": {
+                "operation": "notContains",
+                "type": "string"
+              },
+              "rightValue": "<!-- turing-bot"
+            },
+            {
+              "leftValue": "={{ $json.body.comment.user.type }}",
+              "operator": {
+                "operation": "notEquals",
+                "type": "string"
+              },
+              "rightValue": "Bot"
+            },
+            {
+              "leftValue": "={{ $json.body.comment.body }}",
+              "operator": {
+                "operation": "notContains",
+                "type": "string"
+              },
+              "rightValue": "approved"
+            },
+            {
+              "leftValue": "={{ $json.body.comment.user.login }}",
+              "operator": {
+                "operation": "notEquals",
+                "type": "string"
+              },
+              "rightValue": "Turing-agent"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ecf07719-9a37-4370-9632-c4b31e1c5ad9",
+      "name": "Mentions Turing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        432,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyTo}) { comment { url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, replyTo: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.parent_id ? null : ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.node_id, body: \"<!-- turing-bot -->\\n\\n\" + ($json.reply || $json.output || \"\").trim() } }) }}",
+        "options": {}
+      },
+      "id": "5c8d03ad-df65-4916-9662-b89ba9c3eddb",
+      "name": "Post AI Reply to Discussion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1344,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean(($json.body.comment.body || '').match(/approved/i) && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes($json.body.comment.author_association)) }}",
+              "operator": {
+                "operation": "equals",
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1d6d7e98-fb3d-47a0-aabb-2ebb1b16c867",
+      "name": "Maintainer Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "owner": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.owner.login }}"
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "name",
+          "value": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.name }}"
+        },
+        "title": "={{ $json.title }}",
+        "body": "={{ $json.body }}",
+        "labels": [
+          {
+            "label": "ready-for-work"
+          }
+        ],
+        "assignees": []
+      },
+      "id": "37f554f3-c497-4ce5-98b6-db7d96afdb49",
+      "name": "Create Repository Issue",
+      "type": "n8n-nodes-base.github",
+      "typeVersion": 1.1,
+      "position": [
+        608,
+        1024
+      ],
+      "webhookId": "3e0b8f69-8cdc-4e71-a0fe-578ac6bd44e8",
+      "credentials": {
+        "githubOAuth2Api": {
+          "id": "wl2huRSpI9Hw2viR",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/git/ref/heads/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.default_branch }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "38845ea2-b05b-49d7-bade-e01a762d5449",
+      "name": "Get Default Branch Ref",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1088,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/git/commits/{{ $json.object.sha }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5742282f-ea51-49a3-84be-3e045ca3f0a2",
+      "name": "Get Base Commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1312,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/pulls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            },
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const trigger = ($('GitHub Discussion Events').isExecuted\n    ? $('GitHub Discussion Events')\n    : $('GitHub Webhook (Direct URL)')).item.json;\n  const disc = trigger.body.discussion;\n  const repo = trigger.body.repository;\n  const issueNode = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const issueNum = issueNode.number;\n  const discBody = disc.body || '';\n  const author = disc.user.login;\n  const resolveResult = $('Call Resolve Issue API').item.json;\n\n  // Extract media URLs\n  const allUrls = discBody.match(/https?:\\/\\/[^\\s)\\\\\"<>]+/g) || [];\n  const mediaUrls = allUrls.filter(u =>\n    /user-attachments|githubusercontent|\\.(png|jpe?g|gif|webp|svg|mp4|mov|webm)(\\?|$)/i.test(u)\n  );\n\n  // Extract log code blocks\n  const codeBlocks = [];\n  const codeRe = /```([\\w-]*)\\r?\\n([\\s\\S]*?)```/g;\n  let m;\n  while ((m = codeRe.exec(discBody)) !== null) {\n    const lang = m[1].trim();\n    const code = m[2].trim();\n    if (!lang || /^(text|log|sh|bash|shell|json|yaml|yml|txt)$/i.test(lang)\n        || /error|exception|traceback|stack|fatal|warn|429|quota/i.test(code)) {\n      codeBlocks.push({ lang: lang || 'text', code });\n    }\n  }\n\n  let body = '## \\u{1F916} Automated Fix \u00c3\u00a2\u00c2\u0080\u00c2\u0094 Turing-agent (powered by TinyFish)\\n\\n';\n  body += `> This PR was **automatically generated, coded, and verified** by [Turing-agent](https://github.com/Turing-agent) `;\n  body += `to resolve Discussion [#${disc.number}](${disc.html_url}).\\n\\n`;\n  body += `**Closes** #${issueNum}  \\n`;\n  body += `**Discussion**: [#${disc.number} \u00c3\u00a2\u00c2\u0080\u00c2\u0094 ${disc.title}](${disc.html_url})  \\n`;\n  body += `**Branch**: \\`${resolveResult.branch_name || ('issue-' + issueNum)}\\`  \\n\\n`;\n\n  // TinyFish live verification if available\n  if (resolveResult.tinyfish_summary || (resolveResult.tinyfish_screenshots && resolveResult.tinyfish_screenshots.length > 0)) {\n    body += '---\\n\\n## \u00c3\u00b0\u00c2\u009f\u00c2\u0090\u00c2\u009f TinyFish Web Agent Live Verification\\n\\n';\n    if (resolveResult.live_url) {\n      body += `**Target Website**: ${resolveResult.live_url}\\n\\n`;\n    }\n    if (resolveResult.tinyfish_summary) {\n      body += `> ${resolveResult.tinyfish_summary}\\n\\n`;\n    }\n    (resolveResult.tinyfish_screenshots || []).forEach((img, i) => {\n      body += `**Screenshot ${i+1}**: [View Live Screenshot](${img})\\n\\n![TinyFish Verification Step ${i+1}](${img})\\n\\n`;\n    });\n  }\n\n  // AI fix summary\n  const filesChanged = resolveResult.files_changed || (resolveResult.changed_paths || []).length;\n  if (filesChanged > 0) {\n    body += '---\\n\\n## \\u{1F9E0} AI-Generated Fix\\n\\n';\n    if (resolveResult.summary) {\n      body += `> ${resolveResult.summary}\\n\\n`;\n    }\n    body += `**Files changed (${filesChanged}):**\\n\\n`;\n    (resolveResult.changed_paths || []).forEach(p => { body += `- \\`${p}\\`\\n`; });\n    body += '\\n';\n  }\n  \n  body += '---\\n\\n## \\u{1F4CB} Problem Description\\n\\n';\n  const descPreview = discBody.length > 2000\n    ? discBody.substring(0, 2000) + '\\n\\n_...full details in the linked discussion_'\n    : discBody;\n  body += descPreview + '\\n\\n';\n\n  if (mediaUrls.length > 0) {\n    body += '---\\n\\n## \\u{1F3A8} Visual Evidence\\n\\n';\n    mediaUrls.forEach((url, i) => {\n      const isVideo = /\\.(mp4|mov|webm)(\\?|$)/i.test(url);\n      if (isVideo) {\n        body += `**\\u{1F3AC} Recording ${i+1}:** [View video](${url})\\n\\n`;\n      } else {\n        body += `**\\u{1F4F8} Screenshot ${i+1}:**\\n\\n![Visual evidence from discussion #${disc.number}](${url})\\n\\n`;\n      }\n    });\n  }\n\n  if (codeBlocks.length > 0) {\n    body += '---\\n\\n## \\u{1F4C4} Relevant Logs & Errors\\n\\n';\n    codeBlocks.slice(0, 4).forEach((block, i) => {\n      const code = block.code.length > 1000 ? block.code.substring(0, 1000) + '\\n# ...(truncated)' : block.code;\n      body += `<details>\\n<summary>Log block ${i+1}</summary>\\n\\n\\`\\`\\`${block.lang}\\n${code}\\n\\`\\`\\`\\n\\n</details>\\n\\n`;\n    });\n  }\n\n  body += '---\\n\\n## \\u{1F517} References\\n\\n';\n  body += `- \\u{1F4CC} **Discussion**: [#${disc.number} \u00c3\u00a2\u00c2\u0080\u00c2\u0094 ${disc.title}](${disc.html_url})\\n`;\n  body += `- \\u{1F517} **Issue**: #${issueNum} \u00c3\u00a2\u00c2\u0080\u00c2\u0094 ${issueNode.html_url}\\n`;\n  body += `- \\u{1F464} **Discussion Author / Co-author**: @${author}\\n`;\n  body += `- \\u{1F3E0} **Repository**: [${repo.full_name}](${repo.html_url})\\n\\n`;\n  body += '---\\n\\n';\n  body += `_This PR contains AI-generated code changes by [Turing-agent](https://github.com/Turing-agent) powered by [TinyFish](https://tinyfish.ai). Please review carefully before merging._\\n\\n`;\n  body += `Co-authored-by: ${author} <${author}@users.noreply.github.com>`;\n\n  return JSON.stringify({\n    title: 'Fix #' + issueNum + ': ' + issueNode.title,\n    head: resolveResult.branch_name || ('issue-' + issueNum),\n    base: repo.default_branch,\n    body: body\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "a0051485-ae0c-4b4b-aa8c-1a950313909b",
+      "name": "Open Pull Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2208,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "content": ""
+      },
+      "id": "6eb5f216-365a-40d7-b072-6040a49c74cc",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github-events",
+        "options": {}
+      },
+      "id": "node-direct-webhook",
+      "name": "GitHub Webhook (Direct URL)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        176
+      ],
+      "webhookId": "d79b0361-cf11-4c95-a255-ea74dfbb06b3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!) { addReaction(input: {subjectId: $id, content: EYES}) { reaction { content } } }\", variables: { id: $json.body.comment.node_id } }) }}",
+        "options": {}
+      },
+      "id": "node-react-eyes",
+      "name": "Acknowledge with Eyes Reaction",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        912,
+        160
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/resolve-issue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const trigger = ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json;\n  const issue = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const progressComment = $('Post Initial Progress Comment').isExecuted ? $('Post Initial Progress Comment').item.json : $('Post Approved Already Raised Comment').item.json;\n  const commentId = progressComment && progressComment.data && progressComment.data.addDiscussionComment && progressComment.data.addDiscussionComment.comment ? progressComment.data.addDiscussionComment.comment.id : null;\n  const filesToModify = $('Consolidate Discussion Issue').isExecuted ? ($('Consolidate Discussion Issue').item.json.files_to_modify || []) : [];\n  return JSON.stringify({\n    issue_title: issue.title,\n    issue_body: issue.body,\n    issue_number: issue.number,\n    repo_full_name: trigger.body.repository.full_name,\n    base_tree_sha: $('Get Base Commit').item.json.tree.sha,\n    base_commit_sha: $('Get Base Commit').item.json.sha,\n    discussion_url: trigger.body.discussion.html_url,\n    author: trigger.body.discussion.user.login,\n    issue_url: issue.html_url,\n    progress_comment_id: commentId,\n    files_to_modify: filesToModify\n  });\n})() }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "node-resolve-issue",
+      "name": "Call Resolve Issue API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1568,
+        1040
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!) { addReaction(input: {subjectId: $id, content: EYES}) { reaction { content } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id } }) }}",
+        "options": {}
+      },
+      "id": "node-eyes-discussion",
+      "name": "Acknowledge Discussion with Eyes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        400,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/triage-discussion",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }) }}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "node-triage-discussion",
+      "name": "Triage Discussion with TinyFish",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        480,
+        64
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id, url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: \"<!-- turing-bot -->\\n\\n\" + $json.validation_comment } }) }}",
+        "options": {}
+      },
+      "id": "node-post-validation-comment",
+      "name": "Post Turing Validation Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        768,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyTo}) { comment { url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, replyTo: ($json.data && $json.data.addDiscussionComment && $json.data.addDiscussionComment.comment ? $json.data.addDiscussionComment.comment.id : null), body: $('Triage Discussion with TinyFish').item.json.tinyfish_correlation_comment } }) }}",
+        "options": {}
+      },
+      "id": "node-post-correlation-report",
+      "name": "Post TinyFish Correlation Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1024,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: \"<!-- turing-bot-progress -->\\n### \u00e2\u009a\u00a1 Turing-agent Fix in Progress...\\n- [x] Maintainer approval verified (@\" + ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login + \")\\n- [x] Created & linked Issue [#\" + $('Create Repository Issue').item.json.number + \"](\" + $('Create Repository Issue').item.json.html_url + \")\\n- [\u00e2\u008f\u00b3] Initializing codebase analysis & ephemeral environment...\\n- [ ] Synthesizing solution & patch with Groq AI\\n- [ ] Committing file changes to branch `issue-\" + $('Create Repository Issue').item.json.number + \"`\\n- [ ] Opening Pull Request\" } }) }}",
+        "options": {}
+      },
+      "id": "d016f084-a8c2-446b-9bda-639c18580264",
+      "name": "Post Initial Progress Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        816,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ (() => {\n  const pr = $json;\n  const resolve = $('Call Resolve Issue API').item.json;\n  const issue = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const trigger = ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json;\n  const author = trigger.body.discussion.user.login;\n  const progressNode = $('Post Initial Progress Comment').isExecuted ? $('Post Initial Progress Comment').item.json : $('Post Approved Already Raised Comment').item.json;\n  const commentId = progressNode && progressNode.data && progressNode.data.addDiscussionComment && progressNode.data.addDiscussionComment.comment ? progressNode.data.addDiscussionComment.comment.id : null;\n\n  let body = \"<!-- turing-bot-progress -->\\n### \u00c3\u00a2\u00c2\u009c\u00c2\u0085 Turing-agent Fix Completed!\\n\";\n  body += \"- [x] Maintainer approval verified (@\" + author + \")\\n\";\n  body += \"- [x] Created & linked Issue [#\" + issue.number + \"](\" + issue.html_url + \")\\n\";\n  body += \"- [x] Codebase files inspected (\" + (resolve.files_analyzed || 0) + \" files analyzed)\\n\";\n  body += \"- [x] Solution synthesized by Groq AI (\" + (resolve.files_changed || 0) + \" file(s) modified)\\n\";\n  body += \"- [x] Changes committed & pushed to branch `\" + resolve.branch_name + \"` (`\" + (resolve.commit_sha ? resolve.commit_sha.substring(0, 7) : '') + \"`)\\n\";\n  body += \"- [x] **Pull Request Opened**: [#\" + pr.number + \"](\" + pr.html_url + \") \u00c3\u00b0\u00c2\u009f\u00c2\u008e\u00c2\u0089\\n\\n\";\n\n  if (resolve.changed_paths && resolve.changed_paths.length > 0) {\n    body += \"**Modified Files:**\\n\";\n    resolve.changed_paths.forEach(p => { body += \"- `\" + p + \"`\\n\"; });\n    body += \"\\n\";\n  }\n\n  if (resolve.summary) {\n    body += \"> **Summary**: \" + resolve.summary + \"\\n\\n\";\n  }\n\n  body += \"_Co-authored with @\" + author + \"._\";\n\n  return JSON.stringify({\n    query: \"mutation($input: UpdateDiscussionCommentInput!) { updateDiscussionComment(input: $input) { comment { id url } } }\",\n    variables: {\n      input: {\n        commentId: commentId,\n        body: body\n      }\n    }\n  });\n})() }}",
+        "options": {}
+      },
+      "id": "e7afdf35-5b9d-4239-9827-65686c4a0986",
+      "name": "Update Final Progress Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2288,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/chat-turing",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url,\n  discussion_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id,\n  comment_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.node_id,\n  comment_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body,\n  comment_author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login,\n  repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "node-call-chat-turing",
+      "name": "Call Turing Chat API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        880,
+        352
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/consolidate-discussion",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  maintainer_login: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login\n}) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "426eb71b-6947-44e7-bc99-91bb23e6c196",
+      "name": "Consolidate Discussion Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        288,
+        976
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ Boolean((($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body || '').match(/\\bRW\\b/) && ['OWNER','MEMBER','COLLABORATOR'].includes(($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.author_association) && !(($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body || '').includes('<!-- turing-bot') && ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.type !== 'Bot') }}",
+              "operator": {
+                "operation": "equals",
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "64cd77c7-268c-4c53-b459-20ccd5a98c23",
+      "name": "RW Command?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        112,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "597cd0b9-1b05-4634-9316-10883248cdf9",
+      "name": "Check Existing Issue (RW)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        512,
+        1264
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.exists }}",
+              "operator": {
+                "operation": "equals",
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8eb766ac-0843-478e-9d8f-94fe64c1ea58",
+      "name": "Issue Already Raised? (RW)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        784,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: '<!-- turing-bot -->\\n\\n\u00e2\u009a\u00a0\u00ef\u00b8\u008f **Issue already raised.** Issue [#' + $('Check Existing Issue (RW)').item.json.issue_number + '](' + $('Check Existing Issue (RW)').item.json.issue_url + ') was previously created from this discussion. To trigger an automated PR, comment `approved`.' } }) }}",
+        "options": {}
+      },
+      "id": "44b891f2-53c7-4274-8f2a-1acb2140736e",
+      "name": "Post RW Already Raised Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1152,
+        1168
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/raise-issue-only",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, requester: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "11d8f628-850e-429b-a772-11f1c25ebece",
+      "name": "Call Raise Issue Only API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1120,
+        1392
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "7fa9af9f-8b5e-4977-ad6c-9b46ddb0d588",
+      "name": "Check Existing Issue (Approved)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        496,
+        592
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.exists }}",
+              "operator": {
+                "operation": "equals",
+                "type": "boolean"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cc1e4f43-fe0b-4227-8871-22b17c406a31",
+      "name": "Issue Already Raised? (Approved)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        688,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + (.GITHUB_TOKEN || 'YOUR_GITHUB_TOKEN') }}"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-agent"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: '<!-- turing-bot-progress -->\\n\\n### \u00e2\u009a\u00a1 Turing-agent Fix in Progress...\\n- [x] Issue [#' + $('Check Existing Issue (Approved)').item.json.issue_number + '](' + $('Check Existing Issue (Approved)').item.json.issue_url + ') was already raised from this discussion.\\n- [x] Maintainer approval verified (@' + ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login + ')\\n- [\u00e2\u008f\u00b3] Initializing codebase analysis & ephemeral environment...\\n- [ ] Synthesizing solution & patch with Groq AI\\n- [ ] Committing file changes to branch\\n- [ ] Opening Pull Request' } }) }}",
+        "options": {}
+      },
+      "id": "0771dc25-25da-41cf-b1e3-1b38a5756cb9",
+      "name": "Post Approved Already Raised Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1152,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "issue-number",
+              "name": "number",
+              "type": "number",
+              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_number }}"
+            },
+            {
+              "id": "issue-url",
+              "name": "html_url",
+              "type": "string",
+              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_url }}"
+            },
+            {
+              "id": "issue-title",
+              "name": "title",
+              "type": "string",
+              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_title || ('Issue #' + $('Check Existing Issue (Approved)').item.json.issue_number) }}"
+            },
+            {
+              "id": "issue-body",
+              "name": "body",
+              "type": "string",
+              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_body || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0a78cae6-37e4-4df3-8987-d0573e1a971b",
+      "name": "Set Existing Issue Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1456,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "4d6a0ace-bf9e-4469-af8e-d8b64d21bb02",
+      "name": "Schedule Trigger (Keep Alive)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://turing-agent-backend.onrender.com/",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ce861214-a5cf-45f1-a57d-09f0bdb02e63",
+      "name": "Ping Render Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        64,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "jira-events",
+        "options": {}
+      },
+      "id": "e0d2885e-81c2-4bff-bc90-ab06f6a617fe",
+      "name": "Jira Webhook (Direct URL)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -384,
+        416
+      ],
+      "webhookId": "fec1ee31-79a0-4fde-9a1a-e077c0c51ac5"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://turing-agent-backend.onrender.com/jira/webhook",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "User-Agent",
+              "value": "Turing-n8n-bridge"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body || $json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "cdc0ead0-4e0d-4bd6-86cf-adc8860cff17",
+      "name": "Forward to Jira Backend Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -96,
+        400
+      ]
+    }
   ],
-  "canExecute": true,
   "connections": {
     "GitHub Discussion Events": {
       "main": [
@@ -354,1160 +1508,27 @@
           }
         ]
       ]
-    }
-  },
-  "nodes": [
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "owner": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Turing-agent"
-        },
-        "repository": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Turing-agent"
-        },
-        "events": [
-          "*"
-        ],
-        "options": {}
-      },
-      "id": "952df1e7-bf67-4854-8ddf-3d93b475394a",
-      "name": "GitHub Discussion Events",
-      "type": "n8n-nodes-base.githubTrigger",
-      "typeVersion": 1,
-      "position": [
-        0,
-        192
-      ],
-      "webhookId": "09ab6889-7d9c-48f3-8a56-d78b415acd14",
-      "disabled": true,
-      "credentials": {
-        "githubOAuth2Api": {
-          "id": "wl2huRSpI9Hw2viR",
-          "name": "GitHub account"
-        }
-      }
     },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": false,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
-                    "rightValue": "discussion",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  },
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "created",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "New Bug Report"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": false,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
-                    "rightValue": "discussion_comment",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  },
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "created",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Turing Chat"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": false,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
-                    "rightValue": "discussion_comment",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  },
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "created",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "Maintainer Approval"
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 1
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.headers[\"x-github-event\"] }}",
-                    "rightValue": "discussion_comment",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  },
-                  {
-                    "leftValue": "={{ $json.body.action }}",
-                    "rightValue": "created",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "RW Command"
-            }
-          ]
-        },
-        "options": {
-          "allMatchingOutputs": true
-        }
-      },
-      "id": "7b91a761-a5d2-4a80-a7e6-e7c6b716b9a9",
-      "name": "Route by Event",
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.2,
-      "position": [
-        224,
-        176
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.body.comment.body }}",
-              "operator": {
-                "operation": "contains",
-                "type": "string"
-              },
-              "rightValue": "Turing"
-            },
-            {
-              "leftValue": "={{ $json.body.comment.body }}",
-              "operator": {
-                "operation": "notContains",
-                "type": "string"
-              },
-              "rightValue": "<!-- turing-bot"
-            },
-            {
-              "leftValue": "={{ $json.body.comment.user.type }}",
-              "operator": {
-                "operation": "notEquals",
-                "type": "string"
-              },
-              "rightValue": "Bot"
-            },
-            {
-              "leftValue": "={{ $json.body.comment.body }}",
-              "operator": {
-                "operation": "notContains",
-                "type": "string"
-              },
-              "rightValue": "approved"
-            },
-            {
-              "leftValue": "={{ $json.body.comment.user.login }}",
-              "operator": {
-                "operation": "notEquals",
-                "type": "string"
-              },
-              "rightValue": "Turing-agent"
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "ecf07719-9a37-4370-9632-c4b31e1c5ad9",
-      "name": "Mentions Turing?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        432,
-        304
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyTo}) { comment { url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, replyTo: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.parent_id ? null : ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.node_id, body: \"<!-- turing-bot -->\\n\\n\" + ($json.reply || $json.output || \"\").trim() } }) }}",
-        "options": {}
-      },
-      "id": "5c8d03ad-df65-4916-9662-b89ba9c3eddb",
-      "name": "Post AI Reply to Discussion",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1344,
-        320
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ Boolean(($json.body.comment.body || '').match(/approved/i) && ['OWNER', 'MEMBER', 'COLLABORATOR'].includes($json.body.comment.author_association)) }}",
-              "operator": {
-                "operation": "equals",
-                "type": "boolean"
-              },
-              "rightValue": true
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "1d6d7e98-fb3d-47a0-aabb-2ebb1b16c867",
-      "name": "Maintainer Approved?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        240,
-        592
-      ]
-    },
-    {
-      "parameters": {
-        "authentication": "oAuth2",
-        "owner": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.owner.login }}"
-        },
-        "repository": {
-          "__rl": true,
-          "mode": "name",
-          "value": "={{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.name }}"
-        },
-        "title": "={{ $json.title }}",
-        "body": "={{ $json.body }}",
-        "labels": [
+    "Jira Webhook (Direct URL)": {
+      "main": [
+        [
           {
-            "label": "ready-for-work"
+            "node": "Forward to Jira Backend Webhook",
+            "type": "main",
+            "index": 0
           }
-        ],
-        "assignees": []
-      },
-      "id": "37f554f3-c497-4ce5-98b6-db7d96afdb49",
-      "name": "Create Repository Issue",
-      "type": "n8n-nodes-base.github",
-      "typeVersion": 1.1,
-      "position": [
-        608,
-        1024
-      ],
-      "webhookId": "3e0b8f69-8cdc-4e71-a0fe-578ac6bd44e8",
-      "credentials": {
-        "githubOAuth2Api": {
-          "id": "wl2huRSpI9Hw2viR",
-          "name": "GitHub account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/git/ref/heads/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.default_branch }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            },
-            {
-              "name": "Accept",
-              "value": "application/vnd.github+json"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "38845ea2-b05b-49d7-bade-e01a762d5449",
-      "name": "Get Default Branch Ref",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1088,
-        976
+        ]
       ]
-    },
-    {
-      "parameters": {
-        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/git/commits/{{ $json.object.sha }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            },
-            {
-              "name": "Accept",
-              "value": "application/vnd.github+json"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "5742282f-ea51-49a3-84be-3e045ca3f0a2",
-      "name": "Get Base Commit",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1312,
-        976
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.github.com/repos/{{ ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }}/pulls",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            },
-            {
-              "name": "Accept",
-              "value": "application/vnd.github+json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ (() => {\n  const trigger = ($('GitHub Discussion Events').isExecuted\n    ? $('GitHub Discussion Events')\n    : $('GitHub Webhook (Direct URL)')).item.json;\n  const disc = trigger.body.discussion;\n  const repo = trigger.body.repository;\n  const issueNode = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const issueNum = issueNode.number;\n  const discBody = disc.body || '';\n  const author = disc.user.login;\n  const resolveResult = $('Call Resolve Issue API').item.json;\n\n  // Extract media URLs\n  const allUrls = discBody.match(/https?:\\/\\/[^\\s)\\\\\"<>]+/g) || [];\n  const mediaUrls = allUrls.filter(u =>\n    /user-attachments|githubusercontent|\\.(png|jpe?g|gif|webp|svg|mp4|mov|webm)(\\?|$)/i.test(u)\n  );\n\n  // Extract log code blocks\n  const codeBlocks = [];\n  const codeRe = /```([\\w-]*)\\r?\\n([\\s\\S]*?)```/g;\n  let m;\n  while ((m = codeRe.exec(discBody)) !== null) {\n    const lang = m[1].trim();\n    const code = m[2].trim();\n    if (!lang || /^(text|log|sh|bash|shell|json|yaml|yml|txt)$/i.test(lang)\n        || /error|exception|traceback|stack|fatal|warn|429|quota/i.test(code)) {\n      codeBlocks.push({ lang: lang || 'text', code });\n    }\n  }\n\n  let body = '## \\u{1F916} Automated Fix Ã¢ÂÂ Turing-agent (powered by TinyFish)\\n\\n';\n  body += `> This PR was **automatically generated, coded, and verified** by [Turing-agent](https://github.com/Turing-agent) `;\n  body += `to resolve Discussion [#${disc.number}](${disc.html_url}).\\n\\n`;\n  body += `**Closes** #${issueNum}  \\n`;\n  body += `**Discussion**: [#${disc.number} Ã¢ÂÂ ${disc.title}](${disc.html_url})  \\n`;\n  body += `**Branch**: \\`${resolveResult.branch_name || ('issue-' + issueNum)}\\`  \\n\\n`;\n\n  // TinyFish live verification if available\n  if (resolveResult.tinyfish_summary || (resolveResult.tinyfish_screenshots && resolveResult.tinyfish_screenshots.length > 0)) {\n    body += '---\\n\\n## Ã°ÂÂÂ TinyFish Web Agent Live Verification\\n\\n';\n    if (resolveResult.live_url) {\n      body += `**Target Website**: ${resolveResult.live_url}\\n\\n`;\n    }\n    if (resolveResult.tinyfish_summary) {\n      body += `> ${resolveResult.tinyfish_summary}\\n\\n`;\n    }\n    (resolveResult.tinyfish_screenshots || []).forEach((img, i) => {\n      body += `**Screenshot ${i+1}**: [View Live Screenshot](${img})\\n\\n![TinyFish Verification Step ${i+1}](${img})\\n\\n`;\n    });\n  }\n\n  // AI fix summary\n  const filesChanged = resolveResult.files_changed || (resolveResult.changed_paths || []).length;\n  if (filesChanged > 0) {\n    body += '---\\n\\n## \\u{1F9E0} AI-Generated Fix\\n\\n';\n    if (resolveResult.summary) {\n      body += `> ${resolveResult.summary}\\n\\n`;\n    }\n    body += `**Files changed (${filesChanged}):**\\n\\n`;\n    (resolveResult.changed_paths || []).forEach(p => { body += `- \\`${p}\\`\\n`; });\n    body += '\\n';\n  }\n  \n  body += '---\\n\\n## \\u{1F4CB} Problem Description\\n\\n';\n  const descPreview = discBody.length > 2000\n    ? discBody.substring(0, 2000) + '\\n\\n_...full details in the linked discussion_'\n    : discBody;\n  body += descPreview + '\\n\\n';\n\n  if (mediaUrls.length > 0) {\n    body += '---\\n\\n## \\u{1F3A8} Visual Evidence\\n\\n';\n    mediaUrls.forEach((url, i) => {\n      const isVideo = /\\.(mp4|mov|webm)(\\?|$)/i.test(url);\n      if (isVideo) {\n        body += `**\\u{1F3AC} Recording ${i+1}:** [View video](${url})\\n\\n`;\n      } else {\n        body += `**\\u{1F4F8} Screenshot ${i+1}:**\\n\\n![Visual evidence from discussion #${disc.number}](${url})\\n\\n`;\n      }\n    });\n  }\n\n  if (codeBlocks.length > 0) {\n    body += '---\\n\\n## \\u{1F4C4} Relevant Logs & Errors\\n\\n';\n    codeBlocks.slice(0, 4).forEach((block, i) => {\n      const code = block.code.length > 1000 ? block.code.substring(0, 1000) + '\\n# ...(truncated)' : block.code;\n      body += `<details>\\n<summary>Log block ${i+1}</summary>\\n\\n\\`\\`\\`${block.lang}\\n${code}\\n\\`\\`\\`\\n\\n</details>\\n\\n`;\n    });\n  }\n\n  body += '---\\n\\n## \\u{1F517} References\\n\\n';\n  body += `- \\u{1F4CC} **Discussion**: [#${disc.number} Ã¢ÂÂ ${disc.title}](${disc.html_url})\\n`;\n  body += `- \\u{1F517} **Issue**: #${issueNum} Ã¢ÂÂ ${issueNode.html_url}\\n`;\n  body += `- \\u{1F464} **Discussion Author / Co-author**: @${author}\\n`;\n  body += `- \\u{1F3E0} **Repository**: [${repo.full_name}](${repo.html_url})\\n\\n`;\n  body += '---\\n\\n';\n  body += `_This PR contains AI-generated code changes by [Turing-agent](https://github.com/Turing-agent) powered by [TinyFish](https://tinyfish.ai). Please review carefully before merging._\\n\\n`;\n  body += `Co-authored-by: ${author} <${author}@users.noreply.github.com>`;\n\n  return JSON.stringify({\n    title: 'Fix #' + issueNum + ': ' + issueNode.title,\n    head: resolveResult.branch_name || ('issue-' + issueNum),\n    base: repo.default_branch,\n    body: body\n  });\n})() }}",
-        "options": {}
-      },
-      "id": "a0051485-ae0c-4b4b-aa8c-1a950313909b",
-      "name": "Open Pull Request",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        2208,
-        1040
-      ]
-    },
-    {
-      "parameters": {
-        "content": ""
-      },
-      "id": "6eb5f216-365a-40d7-b072-6040a49c74cc",
-      "name": "Sticky Note",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        1776,
-        1360
-      ]
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "github-events",
-        "options": {}
-      },
-      "id": "node-direct-webhook",
-      "name": "GitHub Webhook (Direct URL)",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        -224,
-        192
-      ],
-      "webhookId": "d79b0361-cf11-4c95-a255-ea74dfbb06b3"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!) { addReaction(input: {subjectId: $id, content: EYES}) { reaction { content } } }\", variables: { id: $json.body.comment.node_id } }) }}",
-        "options": {}
-      },
-      "id": "node-react-eyes",
-      "name": "Acknowledge with Eyes Reaction",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        912,
-        160
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/resolve-issue",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ (() => {\n  const trigger = ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json;\n  const issue = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const progressComment = $('Post Initial Progress Comment').isExecuted ? $('Post Initial Progress Comment').item.json : $('Post Approved Already Raised Comment').item.json;\n  const commentId = progressComment && progressComment.data && progressComment.data.addDiscussionComment && progressComment.data.addDiscussionComment.comment ? progressComment.data.addDiscussionComment.comment.id : null;\n  const filesToModify = $('Consolidate Discussion Issue').isExecuted ? ($('Consolidate Discussion Issue').item.json.files_to_modify || []) : [];\n  return JSON.stringify({\n    issue_title: issue.title,\n    issue_body: issue.body,\n    issue_number: issue.number,\n    repo_full_name: trigger.body.repository.full_name,\n    base_tree_sha: $('Get Base Commit').item.json.tree.sha,\n    base_commit_sha: $('Get Base Commit').item.json.sha,\n    discussion_url: trigger.body.discussion.html_url,\n    author: trigger.body.discussion.user.login,\n    issue_url: issue.html_url,\n    progress_comment_id: commentId,\n    files_to_modify: filesToModify\n  });\n})() }}",
-        "options": {
-          "timeout": 300000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "node-resolve-issue",
-      "name": "Call Resolve Issue API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1568,
-        1040
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!) { addReaction(input: {subjectId: $id, content: EYES}) { reaction { content } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id } }) }}",
-        "options": {}
-      },
-      "id": "node-eyes-discussion",
-      "name": "Acknowledge Discussion with Eyes",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        400,
-        -128
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/triage-discussion",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.user.login, repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name }) }}",
-        "options": {
-          "timeout": 300000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "node-triage-discussion",
-      "name": "Triage Discussion with TinyFish",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        480,
-        64
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id, url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: \"<!-- turing-bot -->\\n\\n\" + $json.validation_comment } }) }}",
-        "options": {}
-      },
-      "id": "node-post-validation-comment",
-      "name": "Post Turing Validation Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        768,
-        -48
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!, $replyTo: ID) { addDiscussionComment(input: {discussionId: $id, body: $body, replyToId: $replyTo}) { comment { url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, replyTo: ($json.data && $json.data.addDiscussionComment && $json.data.addDiscussionComment.comment ? $json.data.addDiscussionComment.comment.id : null), body: $('Triage Discussion with TinyFish').item.json.tinyfish_correlation_comment } }) }}",
-        "options": {}
-      },
-      "id": "node-post-correlation-report",
-      "name": "Post TinyFish Correlation Report",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1024,
-        -32
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: \"<!-- turing-bot-progress -->\\n### â¡ Turing-agent Fix in Progress...\\n- [x] Maintainer approval verified (@\" + ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login + \")\\n- [x] Created & linked Issue [#\" + $('Create Repository Issue').item.json.number + \"](\" + $('Create Repository Issue').item.json.html_url + \")\\n- [â³] Initializing codebase analysis & ephemeral environment...\\n- [ ] Synthesizing solution & patch with Groq AI\\n- [ ] Committing file changes to branch `issue-\" + $('Create Repository Issue').item.json.number + \"`\\n- [ ] Opening Pull Request\" } }) }}",
-        "options": {}
-      },
-      "id": "d016f084-a8c2-446b-9bda-639c18580264",
-      "name": "Post Initial Progress Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        816,
-        528
-      ]
-    },
-    {
-      "parameters": {
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "jsonBody": "={{ (() => {\n  const pr = $json;\n  const resolve = $('Call Resolve Issue API').item.json;\n  const issue = $('Create Repository Issue').isExecuted ? $('Create Repository Issue').item.json : $('Set Existing Issue Data').item.json;\n  const trigger = ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json;\n  const author = trigger.body.discussion.user.login;\n  const progressNode = $('Post Initial Progress Comment').isExecuted ? $('Post Initial Progress Comment').item.json : $('Post Approved Already Raised Comment').item.json;\n  const commentId = progressNode && progressNode.data && progressNode.data.addDiscussionComment && progressNode.data.addDiscussionComment.comment ? progressNode.data.addDiscussionComment.comment.id : null;\n\n  let body = \"<!-- turing-bot-progress -->\\n### Ã¢ÂÂ Turing-agent Fix Completed!\\n\";\n  body += \"- [x] Maintainer approval verified (@\" + author + \")\\n\";\n  body += \"- [x] Created & linked Issue [#\" + issue.number + \"](\" + issue.html_url + \")\\n\";\n  body += \"- [x] Codebase files inspected (\" + (resolve.files_analyzed || 0) + \" files analyzed)\\n\";\n  body += \"- [x] Solution synthesized by Groq AI (\" + (resolve.files_changed || 0) + \" file(s) modified)\\n\";\n  body += \"- [x] Changes committed & pushed to branch `\" + resolve.branch_name + \"` (`\" + (resolve.commit_sha ? resolve.commit_sha.substring(0, 7) : '') + \"`)\\n\";\n  body += \"- [x] **Pull Request Opened**: [#\" + pr.number + \"](\" + pr.html_url + \") Ã°ÂÂÂ\\n\\n\";\n\n  if (resolve.changed_paths && resolve.changed_paths.length > 0) {\n    body += \"**Modified Files:**\\n\";\n    resolve.changed_paths.forEach(p => { body += \"- `\" + p + \"`\\n\"; });\n    body += \"\\n\";\n  }\n\n  if (resolve.summary) {\n    body += \"> **Summary**: \" + resolve.summary + \"\\n\\n\";\n  }\n\n  body += \"_Co-authored with @\" + author + \"._\";\n\n  return JSON.stringify({\n    query: \"mutation($input: UpdateDiscussionCommentInput!) { updateDiscussionComment(input: $input) { comment { id url } } }\",\n    variables: {\n      input: {\n        commentId: commentId,\n        body: body\n      }\n    }\n  });\n})() }}",
-        "method": "POST",
-        "sendBody": true,
-        "sendHeaders": true,
-        "specifyBody": "json",
-        "url": "https://api.github.com/graphql"
-      },
-      "id": "e7afdf35-5b9d-4239-9827-65686c4a0986",
-      "name": "Update Final Progress Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        2288,
-        496
-      ]
-    },
-    {
-      "parameters": {
-        "jsonBody": "={{ JSON.stringify({\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url,\n  discussion_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id,\n  comment_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.node_id,\n  comment_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body,\n  comment_author: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login,\n  repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name\n}) }}",
-        "method": "POST",
-        "options": {
-          "timeout": 120000
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "url": "https://turing-agent-backend.onrender.com/chat-turing",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "node-call-chat-turing",
-      "name": "Call Turing Chat API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        880,
-        352
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/consolidate-discussion",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  repo_full_name: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name,\n  discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number,\n  discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title,\n  discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body,\n  maintainer_login: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login\n}) }}",
-        "options": {
-          "timeout": 120000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "426eb71b-6947-44e7-bc99-91bb23e6c196",
-      "name": "Consolidate Discussion Issue",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        288,
-        976
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ Boolean((($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body || '').match(/\\bRW\\b/) && ['OWNER','MEMBER','COLLABORATOR'].includes(($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.author_association) && !(($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.body || '').includes('<!-- turing-bot') && ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.type !== 'Bot') }}",
-              "operator": {
-                "operation": "equals",
-                "type": "boolean"
-              },
-              "rightValue": true
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "64cd77c7-268c-4c53-b459-20ccd5a98c23",
-      "name": "RW Command?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        112,
-        1248
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
-        "options": {
-          "timeout": 60000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "597cd0b9-1b05-4634-9316-10883248cdf9",
-      "name": "Check Existing Issue (RW)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        512,
-        1264
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.exists }}",
-              "operator": {
-                "operation": "equals",
-                "type": "boolean"
-              },
-              "rightValue": true
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "8eb766ac-0843-478e-9d8f-94fe64c1ea58",
-      "name": "Issue Already Raised? (RW)",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        784,
-        1248
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: '<!-- turing-bot -->\\n\\nâ ï¸ **Issue already raised.** Issue [#' + $('Check Existing Issue (RW)').item.json.issue_number + '](' + $('Check Existing Issue (RW)').item.json.issue_url + ') was previously created from this discussion. To trigger an automated PR, comment `approved`.' } }) }}",
-        "options": {}
-      },
-      "id": "44b891f2-53c7-4274-8f2a-1acb2140736e",
-      "name": "Post RW Already Raised Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1152,
-        1168
-      ],
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/raise-issue-only",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_number: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.number, discussion_title: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.title, discussion_body: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.body, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, discussion_url: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.html_url, requester: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login }) }}",
-        "options": {
-          "timeout": 120000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "11d8f628-850e-429b-a772-11f1c25ebece",
-      "name": "Call Raise Issue Only API",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1120,
-        1392
-      ],
-      "retryOnFail": true,
-      "maxTries": 2,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://turing-agent-backend.onrender.com/check-discussion-issue",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ repository: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.repository.full_name, discussion_node_id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id }) }}",
-        "options": {
-          "timeout": 60000
-        },
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "ngrok-skip-browser-warning",
-              "value": "true"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        }
-      },
-      "id": "7fa9af9f-8b5e-4977-ad6c-9b46ddb0d588",
-      "name": "Check Existing Issue (Approved)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        496,
-        592
-      ],
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.exists }}",
-              "operator": {
-                "operation": "equals",
-                "type": "boolean"
-              },
-              "rightValue": true
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "cc1e4f43-fe0b-4227-8871-22b17c406a31",
-      "name": "Issue Already Raised? (Approved)",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        688,
-        800
-      ]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.github.com/graphql",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{ .GITHUB_TOKEN }}"
-            },
-            {
-              "name": "User-Agent",
-              "value": "Turing-agent"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: \"mutation($id: ID!, $body: String!) { addDiscussionComment(input: {discussionId: $id, body: $body}) { comment { id url } } }\", variables: { id: ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.discussion.node_id, body: '<!-- turing-bot-progress -->\\n\\n### â¡ Turing-agent Fix in Progress...\\n- [x] Issue [#' + $('Check Existing Issue (Approved)').item.json.issue_number + '](' + $('Check Existing Issue (Approved)').item.json.issue_url + ') was already raised from this discussion.\\n- [x] Maintainer approval verified (@' + ($('GitHub Discussion Events').isExecuted ? $('GitHub Discussion Events') : $('GitHub Webhook (Direct URL)')).item.json.body.comment.user.login + ')\\n- [â³] Initializing codebase analysis & ephemeral environment...\\n- [ ] Synthesizing solution & patch with Groq AI\\n- [ ] Committing file changes to branch\\n- [ ] Opening Pull Request' } }) }}",
-        "options": {}
-      },
-      "id": "0771dc25-25da-41cf-b1e3-1b38a5756cb9",
-      "name": "Post Approved Already Raised Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        1152,
-        480
-      ]
-    },
-    {
-      "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "issue-number",
-              "name": "number",
-              "type": "number",
-              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_number }}"
-            },
-            {
-              "id": "issue-url",
-              "name": "html_url",
-              "type": "string",
-              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_url }}"
-            },
-            {
-              "id": "issue-title",
-              "name": "title",
-              "type": "string",
-              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_title || ('Issue #' + $('Check Existing Issue (Approved)').item.json.issue_number) }}"
-            },
-            {
-              "id": "issue-body",
-              "name": "body",
-              "type": "string",
-              "value": "={{ $('Check Existing Issue (Approved)').item.json.issue_body || '' }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "0a78cae6-37e4-4df3-8987-d0573e1a971b",
-      "name": "Set Existing Issue Data",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        1456,
-        560
-      ]
-    },
-    {
-      "id": "4d6a0ace-bf9e-4469-af8e-d8b64d21bb02",
-      "name": "Schedule Trigger (Keep Alive)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [
-        -200,
-        -200
-      ],
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 10
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "ce861214-a5cf-45f1-a57d-09f0bdb02e63",
-      "name": "Ping Render Backend",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.3,
-      "position": [
-        50,
-        -200
-      ],
-      "parameters": {
-        "method": "GET",
-        "url": "https://turing-agent-backend.onrender.com/",
-        "options": {
-          "timeout": 15000
-        }
-      }
     }
-  ],
-  "nodeGroups": [],
-  "activeVersion": {
-    "sameAsDraft": true
   },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "staticData": null,
   "meta": {
     "aiBuilderAssisted": true,
     "builderVariant": "mcp"
