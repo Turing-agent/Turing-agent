@@ -1,37 +1,305 @@
-# Turing-Agent 🐟
+<div align="center">
+
+  <h1 align="center">Turing-Agent 🐟</h1>
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![React](https://img.shields.io/badge/React-19.0-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-6.0-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Llama%203%20%2F%20GPT--OSS-orange.svg)](https://groq.com)
+[![TinyFish](https://img.shields.io/badge/Extraction-TinyFish%20AI-00C49F.svg)](https://tinyfish.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![OSC Event Ready](https://img.shields.io/badge/OSC%20Event-Ready%20to%20Explore%20%26%20Contribute-ff69b4.svg)](#-welcome-osc-contributors--hackers)
+
+### **From Raw User Complaints to Implementation-Ready GitHub Issues**
+
+*An AI-powered QA bridge connecting customer complaint dashboards (Jira) directly to the codebase.*
+
+<br/>
 
 <table>
   <tr>
-    <td width="75%" valign="top">
-      <p><strong>Autonomous GitHub QA maintainer, code repair agent, and repository intelligence system</strong></p>
+    <td width="70%" valign="top">
       <p>
-        Turing-Agent is a Python/FastAPI service that integrates with <a href="https://n8n.io/">n8n</a>, <a href="https://github.com/">GitHub</a>, and <a href="https://www.atlassian.com/software/jira">Jira</a> to automate bug triage, cross-issue correlation, semantic regression detection, and AI-assisted code fixes. Powered by <strong>TinyFish</strong> web automation and <strong>Groq</strong> LLM inference.
+        <strong>Turing-Agent</strong> automates the entire journey from raw end-user complaints to validated, discussed, and implementation-ready GitHub issues.
+      </p>
+      <p>
+        End users file raw, unstructured complaint tickets in issue trackers like <strong>Jira</strong> that lack code context. <strong>Turing-Agent</strong> uses <strong>TinyFish</strong> to extract these raw tickets, validates whether each complaint is legitimate, pinpoints which parts of the repository are affected, suggests potential fixes, and cross-checks existing open issues to avoid duplicate work.
+      </p>
+      <p>
+        It provides an <strong>interactive AI-powered QA interface</strong> where maintainers and developers can discuss potential solutions in the context of the complaint. Once approved (<code>RW</code> / <code>approved</code>), Turing automatically synthesizes the complete discussion into a clean, standardized <strong>GitHub issue</strong> conforming to repository issue templates—complete with agreed implementation scope, relevant patches, and acceptance criteria.
       </p>
     </td>
-    <td width="25%" align="center" valign="middle">
-      <img src="assets/Turing.jpg" alt="Turing-Agent" width="160" style="max-width: 100%; border-radius: 8px;" />
+    <td width="30%" align="center" valign="middle">
+      <img src="assets/Turing.jpg" alt="Turing-Agent Mascot" width="180" style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" />
+      <br/>
+      <sub><em>Turing-Agent: Complaint-to-Issue Bridge 🐟</em></sub>
     </td>
   </tr>
 </table>
 
-> **Implementation status:** This repository includes both live API integrations and simulated/fallback behavior. A generated investigation report or patch is **not automatically proof that a bug was reproduced, a fix was tested, or a pull request was opened**. See [Current limitations](#current-limitations) before using this system for production automation.
+</div>
 
-## Contents
+---
 
-- [Architecture](#architecture)
-- [Features and modules](#features-and-modules)
-- [Repository layout](#repository-layout)
-- [Prerequisites](#prerequisites)
-- [Local setup](#local-setup)
-- [Configuration](#configuration)
-- [API reference](#api-reference)
-- [n8n integration](#n8n-integration)
-- [Jira integration](#jira-integration)
-- [Git regression dashboard](#git-regression-dashboard)
-- [Collaborator invitation workflow](#collaborator-invitation-workflow)
-- [Current limitations](#current-limitations)
-- [Development and troubleshooting](#development-and-troubleshooting)
-- [License](#license)
+## 📑 Table of Contents
+
+- [🎯 Core Project Intent & The Problem We Solve](#-core-project-intent--the-problem-we-solve)
+- [🔄 The End-to-End Journey (Raw Complaint ➔ GitHub Issue)](#-the-end-to-end-journey-raw-complaint--github-issue)
+- [🎪 Welcome OSC Contributors & Hackers!](#-welcome-osc-contributors--hackers)
+  - [Why Hack on Turing-Agent at the OSC Event?](#why-hack-on-turing-agent-at-the-osc-event)
+  - [5-Minute Zero-Barrier Setup (Local Mock Mode)](#5-minute-zero-barrier-setup-local-mock-mode)
+  - [OSC Contribution Tracks & Good First Issues](#osc-contribution-tracks--good-first-issues)
+- [⚡ Quick Try: 1-Command Universal Installation](#-quick-try-1-command-universal-installation)
+- [🏛️ Architecture](#architecture)
+- [📦 Features and modules](#features-and-modules)
+- [🖥️ Interactive QA & Git Regression Dashboard](#️-interactive-qa--git-regression-dashboard)
+- [📦 Repository Layout & Modules](#-repository-layout--modules)
+- [🛠️ Local Development & Testing Guide](#️-local-development--testing-guide)
+- [⚙️ Configuration & Environment Variables](#️-configuration--environment-variables)
+- [📡 API Reference](#-api-reference)
+- [🛡️ Safety Guardrails & Human-in-the-Loop Governance](#️-safety-guardrails--human-in-the-loop-governance)
+- [🤝 Contributing Guidelines](#-contributing-guidelines)
+- [📄 License & Community](#-license--community)
+
+---
+
+## 🎯 Core Project Intent & The Problem We Solve
+
+### The Problem: The Disconnect Between Complaints and Code
+In most software organizations and open-source projects, there is a painful wall between **customer-facing complaint systems (like Jira Service Management)** and the **engineering codebase (GitHub)**:
+
+1. **Raw, Unstructured Tickets**: End users write vague symptoms: *"The button stopped working"* or *"Dropdown is broken on mobile"*. They have no awareness of repository architecture, components, or logs.
+2. **Manual Triage Burden**: Maintainers and engineers spend hours manually:
+   - Verifying whether a complaint is a legitimate bug or user error.
+   - Searching the repository to guess which files, components, or services are affected.
+   - Checking whether an existing open issue or PR already addresses the complaint.
+3. **Lost Consensus**: Developers and maintainers debate potential solutions in ticket comments or chat threads, but that consensus gets lost or has to be manually transcribed into a clean GitHub issue.
+4. **Poor Issue Quality**: Issues created manually from complaints often lack proper scope, file boundaries, and acceptance criteria, causing delays and confusion for contributors trying to implement fixes.
+
+---
+
+### The Solution: Turing-Agent's Multi-Platform QA Bridge
+**Turing-Agent** is conceived as a multi-platform solution (specifically demonstrated and scoped around **Jira** for the hackathon/OSC event) that completely automates the journey:
+
+```
+┌─────────────────────────┐
+│ Raw User Complaint      │  (e.g., Jira Service Management ticket)
+└────────────┬────────────┘
+             │  1. Ingestion via TinyFish Web Fetch / API
+             ▼
+┌─────────────────────────┐
+│ AI Validation & Triage  │  • Is the complaint legitimate?
+│                         │  • Which repository files/components are affected?
+│                         │  • What are possible solution patterns?
+│                         │  • Does an existing open issue already solve it?
+└────────────┬────────────┘
+             │  2. Internal Maintainer Review posted to Jira
+             ▼
+┌─────────────────────────┐
+│ Interactive QA Bridge   │  • Maintainers & developers discuss fixes with the agent
+│                         │  • Chat in the context of the complaint (`Hi Turing, ...`)
+│                         │  • Agree on implementation scope & architectural trade-offs
+└────────────┬────────────┘
+             │  3. Maintainer Approval Command (`RW` / `approved`)
+             ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Implementation-Ready GitHub Issue Generated                │
+│                                                             │
+│ • Refined description conforming to repo issue template    │
+│ • Complete discussion consensus and trade-off summary       │
+│ • Agreed implementation scope (exact `files_to_modify`)     │
+│ • Relevant patches, proposed diffs & acceptance criteria    │
+│ • Labeled `ready-for-work` and `source: Jira`               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🔄 The End-to-End Journey (Raw Complaint ➔ GitHub Issue)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor EndUser as End User
+    participant Jira as Jira Dashboard / Queue
+    participant TinyFish as TinyFish Fetch API
+    participant Backend as Turing FastAPI (main.py)
+    participant Groq as Groq LLM
+    participant GitHub as GitHub Repository
+    actor Maintainer as Maintainer / Developer
+
+    Note over EndUser,Jira: Stage 1: Raw Complaint Intake
+    EndUser->>Jira: Submits raw complaint ticket (e.g., "Actions dropdown clipped")
+    TinyFish->>Jira: Scrapes open ticket queue (ticket summary & description)
+    TinyFish->>Backend: Ingest raw complaint data (POST /jira/triage)
+
+    Note over Backend,GitHub: Stage 2: AI Validation & Repo Correlation
+    Backend->>Groq: Validate legitimacy of complaint & formulate root-cause hypothesis
+    Backend->>TinyFish: Scrape repo issues & PRs to detect duplicates/existing fixes
+    TinyFish->>GitHub: Check open issues, closed PRs, and commit history
+    Backend->>Groq: Correlate complaint with repository components & suggest solutions
+    Backend->>Jira: Post maintainer review as INTERNAL NOTE (private to team)
+
+    Note over Maintainer,Backend: Stage 3: Interactive Discussion in Complaint Context
+    Maintainer->>Jira: Comments: "Hi Turing, what files need changes if we use flex wrap?"
+    Jira->>Backend: POST /jira/comment
+    Backend->>Groq: Analyze proposal against codebase AST & evaluate trade-offs
+    Backend->>Jira: Reply with technical analysis, impacted files & recommendations
+
+    Note over Maintainer,GitHub: Stage 4: Approval & Automatic GitHub Issue Generation
+    Maintainer->>Jira: Comments "RW" (Raise Work) or "approved"
+    Jira->>Backend: Trigger issue synthesis (/raise-issue-only)
+    Backend->>Groq: Consolidate complaint + full discussion consensus into issue spec
+    Backend->>GitHub: Create structured GitHub Issue (conforming to repo template)
+    Backend->>GitHub: Label: `ready-for-work`, `source: Jira`, files_to_modify attached
+    Backend->>Jira: Reply with link to created GitHub Issue Ready for Work!
+```
+
+---
+
+### The 4 Stages in Detail
+
+#### 1. Raw Ticket Extraction (TinyFish)
+- TinyFish actively scrapes raw complaint queues from end-user applications (Jira Service Management, customer support portals, or discussion boards).
+- No manual ticket forwarding is needed—the ingestion engine pulls raw summaries and descriptions automatically.
+
+#### 2. Legitimacy Validation & Repository Correlation
+- **Legitimacy Check**: The agent determines whether the complaint is a reproducible technical issue, a known limitation, or user error.
+- **Affected Repository Scope**: Pinpoints which frontend or backend components in the codebase are responsible (e.g. `src/components/UsersTable.jsx`, CSS overflow rules).
+- **Solution Suggestions**: Formulates actionable engineering proposals and architectural approaches.
+- **Cross-Issue Deduplication**: TinyFish cross-checks the target GitHub repository's open issues, closed issues, and merged PRs to detect if an active effort already solves the problem, avoiding duplicate engineering effort.
+- **Private Maintainer Note**: Attaches this analysis directly to Jira as an **Internal Note** (visible only to maintainers and developers, not end users).
+
+#### 3. Interactive QA Bridge (Discussing in Context)
+- Developers and maintainers don't have to leave Jira to inspect the code.
+- They can directly converse with Turing in the ticket comments:
+  - *"Hi Turing, can we resolve this by changing the modal z-index instead?"*
+  - *"Which files would be affected if we refactor the route handler?"*
+- Turing answers grounded in the repository's actual code structure and AST, evaluating technical trade-offs before any code is touched.
+
+#### 4. Automatic Conversion to Implementation-Ready GitHub Issue (`RW` / `approved`)
+- When the team reaches consensus, a maintainer issues an approval command (`RW` or `approved`).
+- Turing automatically converts the entire journey into a clean, standardized **GitHub Issue**:
+  - **Standard Issue Template**: Structured with Problem Statement, Motivation, Agreed Decisions, and Acceptance Criteria checkboxes.
+  - **Cleaned-Up Specification**: Strips informal conversational banter and typos, synthesizing the core technical consensus.
+  - **Explicit File Scope**: Generates `files_to_modify` so developers picking up the issue know exactly where to make changes.
+  - **Relevant Patches**: Includes code snippets or unified diff suggestions where applicable.
+  - **Provenance Tracking**: Labeled with `ready-for-work` and `source: Jira`.
+
+---
+
+## 🎪 Welcome OSC Contributors & Hackers!
+
+If you are joining us at an **Open Source Community (OSC) event, hackathon, or sprint**, welcome! 
+
+### Why Hack on Turing-Agent at the OSC Event?
+- 🎯 **A Real, Underserved Problem**: You're building a solution to the real-world gap between user complaint tickets and engineering backlogs.
+- ⚡ **Modern Agentic Stack**: FastAPI, Groq high-speed LLM inference, TinyFish web automation, React 19, and GitHub/Jira REST & GraphQL APIs.
+- 🆓 **Zero-Cost Local Hacking**: You do **not** need paid API keys! The built-in **Local Mock Mode (`TINYFISH_MOCK=true`)** and free Groq keys let you hack immediately on your laptop without any barriers.
+
+---
+
+### 5-Minute Zero-Barrier Setup (Local Mock Mode)
+
+#### 1. Clone the repository
+```bash
+git clone https://github.com/Turing-agent/Turing-agent.git
+cd Turing-agent
+```
+
+#### 2. Set up Python virtual environment
+```bash
+python -m venv .venv
+
+# On Linux / macOS:
+source .venv/bin/activate
+
+# On Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+```
+
+#### 3. Configure `.env` (Ready for Mock Mode!)
+Create a `.env` file in the root directory:
+```dotenv
+# Groq LLM (Get a free instant key from https://console.groq.com)
+GROQ_API_KEY=gsk_your_free_groq_key
+GROQ_MODEL=openai/gpt-oss-120b
+
+# TinyFish (Set mock=true to develop locally without paid credits!)
+TINYFISH_MOCK=true
+TINYFISH_API_KEY=mock-dev-key
+
+# GitHub Token (Optional for read-only local testing; required for live issue creation)
+GITHUB_TOKEN=ghp_your_github_pat
+
+# Jira Configuration (Optional; mock fallback included)
+JIRA_EMAIL=user@company.com
+JIRA_API_TOKEN=your_token
+JIRA_URL=https://company.atlassian.net
+```
+
+#### 4. Launch the FastAPI Backend
+```bash
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+Open **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** to test all triage, chat, and issue-synthesis endpoints interactively.
+
+#### 5. Launch the React Dashboard
+In a separate terminal:
+```bash
+npm install
+npm run dev
+```
+Open **[http://localhost:5173](http://localhost:5173)** to explore the Git timeline and QA interface.
+
+#### 6. Run the Jira Integration Tests
+```bash
+python scripts/test_jira_flow.py
+```
+*(Runs full test suite verifying Jira queue scraping, maintainer triage, `RW` issue creation, and wiki markup conversion!)*
+
+---
+
+### OSC Contribution Tracks & Good First Issues
+
+| Track | Goal & Scope | Key Files |
+| :--- | :--- | :--- |
+| 📋 **Track 1: Issue Template & Synthesis Intelligence** | • Teach the consolidator to parse and match specific `.github/ISSUE_TEMPLATE/*.md` formats<br/>• Improve Groq prompts for extracting precise acceptance criteria<br/>• Enhance patch suggestion generation | `tasks/discussion_consolidator.py`<br/>`tasks/tinyfish_correlator.py` |
+| 🌉 **Track 2: Multi-Platform Support (Beyond Jira)** | • Add adapters for **Linear**, **Zendesk**, **GitLab Issues**, or **GitHub Discussions**<br/>• Build webhook receivers for customer feedback platforms<br/>• Unify raw complaint ingestion schemas | `tasks/jira_integration.py`<br/>`main.py`<br/>`scripts/` |
+| 🔍 **Track 3: Codebase AST & Duplicate Detection** | • Improve component mapping so complaints map to exact file paths and line ranges<br/>• Smarter deduplication: semantic matching between complaints and open GitHub issues<br/>• Blast-radius estimation for proposed fixes | `tasks/analyzer.py`<br/>`tasks/tinyfish_correlator.py`<br/>`tasks/culprit_analyzer.py` |
+| 📊 **Track 4: QA Dashboard & Visual Interface** | • Add a "Complaint Intake Queue" view in the React dashboard<br/>• Real-time diff previews for suggested patches<br/>• Direct "Approve & Convert to GitHub Issue" button in the dashboard UI | `frontend/src/components/GitTimeSeriesDashboard.jsx`<br/>`frontend/src/` |
+| 🧪 **Track 5: Tests, Documentation & Demos** | • Expand pytest test coverage for edge cases (e.g. malformed complaints)<br/>• Create a sample interactive walkthrough or video demo for maintainers<br/>• Dockerize the full stack for one-command setup | `scripts/test_jira_flow.py`<br/>`Dockerfile`<br/>`README.md` |
+
+---
+
+## ⚡ Quick Try: 1-Command Universal Installation
+
+Want to connect Turing-Agent to your open-source repository right now? Any maintainer can initialize Turing in 30 seconds using a single command:
+
+### Option A: Cross-Platform NPX
+```bash
+npx github:Turing-agent/Turing-agent
+```
+*Or target any remote repository directly:*
+```bash
+npx github:Turing-agent/Turing-agent owner/repo
+```
+
+### Option B: Linux / macOS 1-Liner (curl)
+```bash
+curl -fsSL https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.sh | bash
+```
+
+### Option C: Windows PowerShell 1-Liner
+```powershell
+irm https://raw.githubusercontent.com/Turing-agent/Turing-agent/main/scripts/install.ps1 | iex
+```
+
+---
 
 ## Architecture
 
@@ -131,430 +399,165 @@ flowchart TD
 | n8n GitHub workflow | GitHub webhook handling, routing, comment posting | `turing-agent-workflow.json` |
 | n8n invite workflow | Collaborator invitation acceptance | `accept-turing-invite-workflow.json` |
 
-### Core workflows
+---
 
-#### 1. Discussion triage (`POST /triage-discussion`)
-- Generates immediate maintainer validation comment via Groq LLM
-- Scrapes repository issues/discussions via TinyFish Web Fetch API
-- Correlates related issues, PRs, and component impacts
-- Posts threaded TinyFish correlation report under validation comment
+## 🖥️ Interactive QA & Git Regression Dashboard
 
-#### 2. Intent-driven Q&A (`POST /chat-turing`)
-- Classifies comments into: `FIND_RELATED_ISSUES`, `REPRODUCE_BUG`, `ANALYZE_PROPOSAL`, `GENERAL_QA`
-- Handles bug reproduction via TinyFish browser automation with screenshots
-- Scrapes related issues and conflicting PRs
-- Analyzes contributor proposals for trade-offs and drawbacks
+The repository includes a dedicated React 19 / TailwindCSS dashboard (`frontend/`) accessible at `http://127.0.0.1:8000/dashboard` or `http://localhost:5173`.
 
-#### 3. Maintainer approval & PR resolution (`POST /resolve-issue`)
-- Creates GitHub issue with `ready-for-work` label
-- Posts real-time progress checklist in discussion
-- Fetches repository files in parallel (ThreadPoolExecutor)
-- Inspects live deployments via TinyFish Agent
-- Generates code fixes via Groq LLM
-- Commits changes via GitHub Git Data API with co-author credit
-- Opens Pull Request with rich description and TinyFish screenshots
-
-#### 4. Discussion consolidation (`POST /consolidate-discussion`)
-- Triggered by maintainer `RW` command
-- Fetches discussion thread comments
-- Synthesizes consensus into clean GitHub Issue spec via Groq
-- Patches existing issue with consolidated title and body
-- Enforces 2,500 character token safety limit
-
-#### 5. Cleaned-issue follow-up monitoring (TinyFish)
-- Once an `RW` command has created or updated a cleaned-up GitHub issue, TinyFish monitors that issue for further conversation.
-- If follow-up discussion occurs, a 24-hour timer runs before the additional context is consolidated.
-- When the timer expires, the cleaned-up context is automatically attached as a sub-issue to the existing cleaned-up issue in GitHub Issues.
-
-#### 6. Jira integration
-- **Triage** (`POST /jira/triage`): Posts maintainer validation + TinyFish correlation as INTERNAL NOTE
-- **Comment handling** (`POST /jira/comment`): Processes `RW`, `approved`, and `Hi Turing` commands
-- Creates GitHub Issues with `source: Jira` label
-- Tracks source provenance via labels
-
-#### 7. Git regression intelligence
-- **Git DAG** (`GET /api/git-dag`): Fetches commit DAG with incidents pinned to timeline
-- **Culprit detection** (`POST /api/investigate-culprit`): Semantic regression analysis to identify guilty commit
-- Visualizes swimlane graph with authentic Git branch rendering
-- Maps issues/discussions to closest prior commit by timestamp
-- Syncs upstream issue metadata for mirrored issues
-
-## Repository layout
-
-```text
-.
-├── .agents/
-│   ├── mcp_config.json                 # n8n MCP endpoint configuration
-│   └── skills/
-│       └── reproduce-bug-report/      # Oz cloud agent skill
-├── tasks/                              # Modular task modules
-│   ├── __init__.py
-│   ├── turing_qa.py                    # Intent parser & QA engine
-│   ├── tinyfish_correlator.py         # TinyFish scraper & correlator
-│   ├── discussion_consolidator.py    # Discussion consolidation
-│   ├── jira_integration.py            # Jira integration
-│   ├── culprit_analyzer.py           # Git regression intelligence
-│   ├── agent_runner.py               # TinyFish browser automation
-│   ├── analyzer.py                   # Root-cause analysis
-│   ├── docker_provisioner.py          # Docker sandbox management
-│   └── vision_module.py               # Video analysis
-├── frontend/                          # React dashboard
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── GitTimeSeriesDashboard.jsx
-│   │   │   └── GitHubAuthModal.jsx
-│   │   ├── main.jsx
-│   │   └── styles.css
-│   └── dist/                          # Built frontend assets
-├── scripts/                           # Utility scripts
-│   ├── invite_turing.sh               # Bash invitation helper
-│   ├── invite_turing.ps1              # PowerShell invitation helper
-│   ├── diff_cloud_workflow.py
-│   ├── n8n_mcp_client.py
-│   ├── retrigger_discussions.py
-│   ├── switch_backend_url.py
-│   ├── sync_upstream_issues.py
-│   ├── sync_workflow_to_cloud.py
-│   ├── test_jira_converter.py
-│   └── test_jira_flow.py
-├── main.py                            # FastAPI application
-├── turing-agent-workflow.json         # n8n GitHub workflow
-├── accept-turing-invite-workflow.json # n8n invitation workflow
-├── requirements.txt                   # Python dependencies
-├── project_context.md                 # Detailed architecture documentation
-├── tasks.md                           # Development tasks
-├── README.md
-└── LICENSE
-```
-
-## Prerequisites
-
-- Python **3.10+** and `pip` (a virtual environment is recommended)
-- Git for cloning repositories
-- Docker Desktop / an accessible Docker daemon **optional**, for containerized investigation
-- Node.js 18+ and npm for frontend development
-- API credentials as needed for specific integrations (see below)
-- For n8n: an n8n instance that can reach the FastAPI backend
-- For invitation helpers: [GitHub CLI (`gh`)](https://cli.github.com/)
-
-## Local setup
-
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/Turing-agent/Turing-agent.git
-   cd Turing-agent
-   ```
-
-2. Create a virtual environment and install Python dependencies:
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate  # macOS / Linux
-   # On Windows PowerShell: .venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
-   ```
-
-3. Configure environment variables in `.env`:
-
-   ```dotenv
-   # Groq LLM (required for triage and fix generation)
-   GROQ_API_KEY=gsk_...
-   GROQ_MODEL=openai/gpt-oss-120b
-
-   # TinyFish (optional for live investigation)
-   TINYFISH_API_KEY=sk-tinyfish-...
-   TINYFISH_MOCK=false
-
-   # GitHub (required for API operations)
-   GITHUB_TOKEN=ghp_...
-
-   # Jira (optional for Jira integration)
-   JIRA_EMAIL=user@company.com
-   JIRA_API_TOKEN=...
-   JIRA_URL=https://company.atlassian.net
-   ```
-
-4. Launch the backend:
-
-   ```bash
-   uvicorn main:app --reload --host 127.0.0.1 --port 8000
-   ```
-
-5. (Optional) Build and serve the frontend:
-
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-   # Frontend will be served at http://127.0.0.1:8000/dashboard
-   ```
-
-6. Verify health endpoint:
-
-   ```bash
-   curl http://127.0.0.1:8000/
-   ```
-
-   Interactive FastAPI docs are available at `http://127.0.0.1:8000/docs`
-
-## Configuration
-
-| Variable | Used by | Requirement / default |
-| --- | --- | --- |
-| `GROQ_API_KEY` | Triage, fix generation, QA, culprit detection | Required |
-| `GROQ_MODEL` | Groq LLM calls | Optional; falls back to `openai/gpt-oss-120b` |
-| `TINYFISH_API_KEY` | TinyFish web automation, issue scraping | Optional for simulated mode |
-| `TINYFISH_MOCK` | TinyFish agent runner | Defaults to `true`; set `false` for live automation |
-| `GITHUB_TOKEN` | GitHub API operations | Required for authenticated operations |
-| `JIRA_EMAIL` | Jira REST API authentication | Optional for Jira integration |
-| `JIRA_API_TOKEN` | Jira REST API authentication | Optional for Jira integration |
-| `JIRA_URL` | Jira instance base URL | Optional; defaults to `https://jira.atlassian.net` |
-
-## API reference
-
-### Core endpoints
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/` | Health check |
-| `GET` | `/dashboard` | React dashboard |
-| `POST` | `/triage-discussion` | Generate validation + correlation comments |
-| `POST` | `/chat-turing` | Intent-driven Q&A and investigation |
-| `POST` | `/resolve-issue` | Generate code fixes and create PR |
-| `POST` | `/consolidate-discussion` | Synthesize discussion into clean issue spec |
-| `GET/POST` | `/accept-turing-invite` | Accept GitHub collaborator invitations |
-| `POST` | `/jira/triage` | Triage Jira ticket with internal notes |
-| `POST` | `/jira/comment` | Handle Jira ticket commands |
-| `GET` | `/api/git-dag` | Fetch Git DAG with incidents |
-| `POST` | `/api/investigate-culprit` | Perform semantic regression analysis |
-
-### `POST /triage-discussion`
-
-```bash
-curl -X POST http://127.0.0.1:8000/triage-discussion \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "discussion_title": "Bug: login redirect fails",
-    "discussion_body": "After logging in, the application remains on the sign-in screen.",
-    "discussion_number": 17,
-    "author": "example-user",
-    "repository": "OWNER/REPO"
-  }'
-```
-
-Response:
-```json
-{
-  "status": "success",
-  "validation_comment": "Hey @example-user! 👋 Thanks for reporting...",
-  "tinyfish_correlation_comment": "<!-- turing-bot -->\n## 🐟 TinyFish Cross-Issue Correlation...",
-  "scraped_issues_count": 3
-}
-```
-
-### `POST /resolve-issue`
-
-```bash
-curl -X POST http://127.0.0.1:8000/resolve-issue \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "issue_title": "Fix incorrect login redirect",
-    "issue_body": "Steps to reproduce...",
-    "issue_number": 17,
-    "repo_full_name": "OWNER/REPO",
-    "base_tree_sha": "REPLACE_WITH_REAL_GIT_TREE_SHA",
-    "author": "contributor"
-  }'
-```
-
-Response:
-```json
-{
-  "status": "success",
-  "commit_sha": "new-commit-sha",
-  "tree_sha": "new-tree-sha",
-  "branch_name": "issue-17",
-  "commit_message": "fix: resolve issue #17",
-  "summary": "1-2 sentence explanation",
-  "changes": [
-    {"path": "src/example.js", "content": "..."}
-  ],
-  "files_changed": 1,
-  "changed_paths": ["src/example.js"],
-  "files_analyzed": 15
-}
-```
-
-### `GET /api/git-dag`
-
-```bash
-curl "http://127.0.0.1:8000/api/git-dag?repo=OWNER/REPO&limit=30"
-```
-
-Response:
-```json
-{
-  "repository": "OWNER/REPO",
-  "default_branch": "main",
-  "total_commits": 30,
-  "commits": [
-    {
-      "sha": "abc123...",
-      "short_sha": "abc1234",
-      "message": "Fix navbar navigation",
-      "author": "dev",
-      "date": "2026-10-31T10:00:00Z",
-      "lane": 0,
-      "lane_color": "#38bdf8",
-      "incidents": [...]
-    }
-  ],
-  "incidents": [...]
-}
-```
-
-## n8n integration
-
-### GitHub Discussions workflow
-
-Import [`turing-agent-workflow.json`](turing-agent-workflow.json) into n8n:
-
-1. **GitHub Trigger**: Receives `discussion` and `discussion_comment` events
-2. **Route by Event Switch**:
-   - **New Bug Report**: Acknowledge with 👀 → triage → post validation + correlation
-   - **Turing Chat**: Check for mention → call `/chat-turing` → post reply
-   - **Maintainer Approved**: Create issue → post progress → call `/resolve-issue` → open PR
-   - **RW Command**: Call `/consolidate-discussion` → patch issue
-   - **Cleaned-issue follow-up**: TinyFish monitors an existing issue created or cleaned up through `RW`. When new conversation is detected, after a 24-hour timer it consolidates that follow-up context and attaches it as a sub-issue to the cleaned-up issue in GitHub Issues.
-
-### Invitation workflow
-
-Import [`accept-turing-invite-workflow.json`](accept-turing-invite-workflow.json):
-
-1. **Webhook trigger**: `GET /webhook/accept-turing-invite`
-2. **Fetch invitations**: Query GitHub API for pending invites
-3. **Accept invitations**: Accept each pending invite via PATCH
-
-## Jira integration
-
-Turing-Agent integrates with Jira Software for enterprise ticket triage:
-
-### Capabilities
-
-- **Queue Scraping**: Fetches open Jira tickets via REST API or TinyFish
-- **Internal Notes**: Posts maintainer validation + TinyFish correlation as INTERNAL NOTE (private to maintainers)
-- **Interactive Commands**:
-  - `RW`: Creates GitHub Issue with `source: Jira` label
-  - `approved`: Triggers automated PR fix workflow
-  - `Hi Turing, ...`: Dispatches through intent layer for Q&A
-- **Source Provenance**: Tracks ticket origin via labels (`source: Jira`, `source: GitHub Discussion`)
-
-### Endpoints
-
-- `POST /jira/triage`: Triages a Jira ticket with maintainer validation
-- `POST /jira/comment`: Handles interactive commands on Jira tickets
-
-## Git regression dashboard
-
-The React dashboard (`frontend/src/components/GitTimeSeriesDashboard.jsx`) provides:
-
-### Features
-
-1. **Interactive Git Graph Visualization**
-   - Authentic swimlane rendering (GitKraken/VS Code style)
-   - Branch color coding and merge arc visualization
-   - Tag and branch reference pills
-
-2. **Incident Pinning**
-   - Maps GitHub issues and discussions to commits by timestamp
-   - Red defect markers on commits with incidents
-   - Expandable incident dropdowns per commit
-
-3. **Culprit Investigation**
-   - One-click semantic regression analysis
-   - Groq LLM reasoning for commit blame
-   - Confidence scoring and explanation
-
-4. **GitHub Authentication**
-   - OAuth integration for private repo access
-   - Demo mode for public repositories
-
-5. **Repository Selection**
-   - Pre-configured repos (eventyaysandbox/eventyay_Sandbox, fossasia/eventyay, etc.)
-   - Dynamic user repo fetching via GitHub API
-
-### Access
-
-Visit `http://127.0.0.1:8000/dashboard` when the backend is running, or deploy the frontend with `npm run build` in the `frontend/` directory.
-
-## Collaborator invitation workflow
-
-The helper scripts use `gh` to invite `Turing-agent` and trigger the n8n webhook:
-
-**Bash/Zsh:**
-```bash
-export TURING_N8N_INVITE_WEBHOOK='https://YOUR_N8N_HOST/webhook/accept-turing-invite'
-source scripts/invite_turing.sh
-invite_turing
-```
-
-**PowerShell:**
-```powershell
-$env:TURING_N8N_INVITE_WEBHOOK = 'https://YOUR_N8N_HOST/webhook/accept-turing-invite'
-. .\scripts\invite_turing.ps1
-Invite-Turing
-```
-
-**Before using:** Confirm that `Turing-agent` is the correct account and that your team approves granting it access.
-
-## Current limitations
-
-1. **Simulated investigation**: `TINYFISH_MOCK=true` (default) generates canned reports. Live TinyFish automation requires a valid API key.
-2. **LLM hallucinations**: Groq-generated code fixes require human review before merging.
-3. **Token limits**: Discussion consolidation enforces 2,500 character limit for LLM safety.
-4. **Docker requirement**: Sandbox provisioning requires Docker; falls back to temporary workspace if unavailable.
-5. **GitHub API rate limits**: High-volume operations may hit rate limits; implement backoff/retry logic as needed.
-
-## Development and troubleshooting
-
-### Running tests
-
-```bash
-# Run Python tests (if available)
-pytest
-
-# Run frontend tests
-cd frontend
-npm test
-```
-
-### Building the frontend
-
-```bash
-cd frontend
-npm install
-npm run build
-```
-
-### Debugging
-
-- Enable debug logging by setting `LOG_LEVEL=DEBUG` in `.env`
-- Check FastAPI docs at `http://127.0.0.1:8000/docs` for interactive API testing
-- Monitor n8n workflow execution logs in the n8n UI
-
-### Common issues
-
-- **Import errors**: Ensure `tasks/` directory is in `sys.path` (handled in `main.py`)
-- **Groq rate limits**: The code implements backoff retries; adjust `GROQ_MODEL` if needed
-- **TinyFish timeout**: Increase timeout in `agent_runner.py` if automation takes longer
-- **GitHub authentication**: Verify `GITHUB_TOKEN` has required permissions (repo, issues, pull requests)
-
-## License
-
-See [LICENSE](LICENSE) file for details.
+- 🌿 **Git DAG Swimlanes**: Visualizes branches, merges, and commits with color-coded lanes.
+- 🎯 **Incident & Complaint Pinning**: Pins incoming complaints and GitHub issues directly along the commit timeline to see when regressions first appeared.
+- 🔍 **Semantic Culprit Blame**: Analyzes commit diffs against reported complaints to identify the exact commit that introduced a defect.
 
 ---
 
-*Autonomous QA powered by TinyFish & Groq LLM*
+## 📦 Repository Layout & Modules
+
+```text
+.
+├── tasks/                             # Core QA & synthesis tasks
+│   ├── jira_integration.py           # Jira queue scraping, triage & commands
+│   ├── tinyfish_correlator.py        # Legitimacy check & cross-issue deduplication
+│   ├── discussion_consolidator.py   # Synthesizes consensus into clean GitHub Issues
+│   ├── turing_qa.py                   # Contextual QA & intent parser
+│   ├── culprit_analyzer.py          # Git DAG & semantic blame detection
+│   ├── analyzer.py                  # Codebase AST inspector & diff generator
+│   ├── agent_runner.py              # TinyFish web automation driver
+│   └── docker_provisioner.py         # Sandbox provisioner for isolated checks
+├── frontend/                          # React 19 + TailwindCSS Dashboard
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── GitTimeSeriesDashboard.jsx  # Visual Git DAG & Culprit Investigation
+│   │   │   └── GitHubAuthModal.jsx         # GitHub authentication modal
+│   │   ├── main.jsx
+│   │   └── styles.css
+│   └── dist/                          # Production built frontend assets
+├── scripts/                           # Utilities & verification test harnesses
+│   ├── test_jira_flow.py              # Verifies full Jira ➔ GitHub Issue pipeline
+│   ├── install.sh / .ps1              # 1-command installer scripts
+│   ├── invite_turing.sh / .ps1        # Collaborator invite helpers
+│   └── sync_upstream_issues.py        # Metadata sync helper
+├── bin/
+│   └── turing.js                      # Universal NPX installer CLI
+├── main.py                            # FastAPI application & route orchestrator
+├── turing-agent-workflow.json        # n8n main workflow definition
+├── accept-turing-invite-workflow.json# n8n invite acceptance workflow
+├── requirements.txt                  # Python dependencies
+├── project_context.md                # Comprehensive technical specification
+├── getting_started.md                # Detailed setup guide
+├── CONTRIBUTING.md                   # Contributor guidelines
+├── package.json                      # Frontend scripts & NPX CLI configuration
+└── LICENSE                           # MIT License
+```
+
+---
+
+## 🛠️ Local Development & Testing Guide
+
+### Prerequisites
+- **Python 3.10+** and `pip`
+- **Node.js 18+** and `npm`
+- **Git**
+
+### Verifying the Jira ➔ GitHub Issue Flow
+We provide a dedicated test script (`scripts/test_jira_flow.py`) that tests the entire flow locally without requiring external services:
+
+```bash
+python scripts/test_jira_flow.py
+```
+This script exercises:
+1. Scraping open complaint tickets from the queue.
+2. Generating the maintainer triage review and internal note.
+3. Executing the `RW` command to consolidate the complaint into a clean GitHub Issue.
+4. Verifying Jira wiki markup conversion and bot comment suppression.
+
+---
+
+## ⚙️ Configuration & Environment Variables
+
+| Variable | Description | Requirement | Default / Note |
+| :--- | :--- | :---: | :--- |
+| `GROQ_API_KEY` | Groq Cloud API key for fast LLM inference | **Required** | Free key at [console.groq.com](https://console.groq.com) |
+| `GROQ_MODEL` | LLM model identifier on Groq | Optional | `openai/gpt-oss-120b` |
+| `TINYFISH_MOCK` | Enable local mock mode (no paid TinyFish credits needed) | Optional | `true` (set `false` for live web fetch) |
+| `TINYFISH_API_KEY` | TinyFish API key | Optional | Needed only when `TINYFISH_MOCK=false` |
+| `GITHUB_TOKEN` | GitHub PAT with repo/issues permissions | Recommended | Required to create real GitHub issues/PRs |
+| `JIRA_EMAIL` | Jira Service Management user email | Optional | Used for live Jira API integration |
+| `JIRA_API_TOKEN` | Jira REST API token | Optional | Used for live Jira API integration |
+| `JIRA_URL` | Jira organization host URL | Optional | `https://company.atlassian.net` |
+| `PORT` | FastAPI server listening port | Optional | `8000` |
+
+---
+
+## 📡 API Reference
+
+| Method | Endpoint | Purpose in the Journey |
+| :--- | :--- | :--- |
+| `POST` | `/jira/triage` | **Intake & Validation**: Analyzes raw Jira complaint, validates legitimacy, correlates with repo, posts Internal Note. |
+| `POST` | `/jira/comment` | **QA Interface**: Handles discussions and commands (`RW`, `approved`, `Hi Turing, ...`) on Jira tickets. |
+| `POST` | `/raise-issue-only` | **Issue Synthesis (`RW`)**: Consolidates complaint and discussion into a clean GitHub Issue. |
+| `POST` | `/consolidate-discussion` | Synthesizes multi-comment thread into a structured issue spec. |
+| `GET` | `/jira/queue` | Fetches open raw complaint tickets waiting for triage. |
+| `POST` | `/triage-discussion` | Triages incoming GitHub Discussions with immediate maintainer review. |
+| `POST` | `/chat-turing` | Contextual Q&A on GitHub Discussions. |
+| `POST` | `/resolve-issue` | Generates surgical code fix branch and opens PR upon `approved`. |
+| `GET` | `/api/git-dag` | Returns Git commit DAG with pinned defect complaints. |
+| `POST` | `/api/investigate-culprit` | Identifies the commit that introduced a defect complaint. |
+
+### Example: Triaging a Raw Jira Complaint
+```bash
+curl -X POST http://127.0.0.1:8000/jira/triage \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticket_key": "EVY-104",
+    "summary": "Actions dropdown menu clipped in Users table",
+    "description": "When navigating to Admin Users table, the actions menu is clipped by table container overflow.",
+    "reporter": "support.user",
+    "repository": "eventyaysandbox/eventyay_Sandbox"
+  }'
+```
+
+### Example: Raising a Structured GitHub Issue (`RW` Command)
+```bash
+curl -X POST http://127.0.0.1:8000/raise-issue-only \
+  -H "Content-Type: application/json" \
+  -d '{
+    "repository": "eventyaysandbox/eventyay_Sandbox",
+    "discussion_title": "Actions dropdown menu clipped",
+    "discussion_body": "Container has overflow: hidden so dropdown menu gets cut off.",
+    "requester": "lead-maintainer",
+    "source": "Jira",
+    "jira_ticket_key": "EVY-104"
+  }'
+```
+
+---
+
+## 🛡️ Safety Guardrails & Human-in-the-Loop Governance
+
+- 🔒 **Maintainer Approval Gate**: GitHub issues and code fixes are only raised or committed when an authorized maintainer explicitly issues an approval command (`RW` or `approved`).
+- 🔀 **Pull Requests, Never Direct Merges**: Any automated code repair produces a reviewable Pull Request; code is never merged into the base branch automatically.
+- 🤝 **Attribution**: Commits credit the original complaint reporter with co-author metadata.
+- 🛡️ **Size & Context Safety**: Issue synthesis strictly enforces a 2,500-character safety limit to prevent unbounded LLM hallucination and ensure clean markdown formatting.
+- 🧪 **Offline Mocking**: `TINYFISH_MOCK=true` allows safe development and testing without accidental API calls or costs.
+
+---
+
+## 🤝 Contributing Guidelines
+
+We welcome contributions from the community! Check out our [CONTRIBUTING.md](CONTRIBUTING.md) guide for detailed instructions on:
+- Setting up your local environment.
+- Submitting pull requests.
+- Conventional commit message rules.
+- Picking up good first issues during hackathons and community events.
+
+---
+
+## 📄 License & Community
+
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
+
+**Built with passion for open source maintainers and developers.**  
+Powered by [TinyFish](https://tinyfish.ai) & [Groq](https://groq.com).
+
+*Exploring Turing-Agent during an OSC event? Reach out to the maintainers, pick a track, and let's build together! 🐟*
